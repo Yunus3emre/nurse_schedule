@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Hemşire Nöbet Listesi - Aylık çalışma programı düzenleme ve TXT olarak indirme uygulaması" />
+  <title>Hemşire Nöbet Listesi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="app-wrapper">
+
+  <!-- ─── HEADER ─── -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="header-icon">🏥</div>
+      <div class="header-title">
+        <h1>Hemşire Nöbet Listesi</h1>
+        <p>Aylık Vardiya Planlama</p>
+      </div>
+    </div>
+
+    <div class="header-center">
+      <div class="month-nav">
+        <button class="nav-btn" onclick="prevMonth()" title="Önceki Ay">◀</button>
+        <div class="month-display">
+          <span class="month-name" id="monthName">Nisan</span>
+          <span class="year-name" id="yearName">2026</span>
+        </div>
+        <button class="nav-btn" onclick="nextMonth()" title="Sonraki Ay">▶</button>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <button class="btn btn-secondary" onclick="openNurseModal()" id="btn-manage-nurses">
+        👩‍⚕️ Hemşireler
+      </button>
+      <button class="btn btn-secondary" onclick="printSchedule()" id="btn-print">
+        🖨️ Yazdır
+      </button>
+      <button class="btn btn-danger" onclick="clearAll()" id="btn-clear-all">
+        🗑️ Temizle
+      </button>
+      <button class="btn btn-primary" onclick="downloadTxt()" id="btn-download">
+        ⬇️ TXT İndir
+      </button>
+    </div>
+  </header>
+
+  <!-- ─── LEGEND BAR ─── -->
+  <div class="legend-bar">
+    <span class="legend-label">Vardiya Türleri</span>
+    <div class="legend-items">
+      <div class="legend-item">
+        <span class="legend-chip chip-day">D</span>
+        Gündüz (08:00–16:00)
+      </div>
+      <div class="legend-item">
+        <span class="legend-chip chip-night">N</span>
+        Gece (16:00–08:00)
+      </div>
+      <div class="legend-item">
+        <span class="legend-chip chip-dn">D/N</span>
+        24 Saat (08:00–08:00 ertesi gün)
+      </div>
+      <div class="legend-item">
+        <span class="legend-chip chip-leave">İ</span>
+        Yıllık İzin
+      </div>
+    </div>
+    <div class="legend-spacer"></div>
+    <div class="stats-bar">
+      <div class="stat-item">📊 Toplam: <span class="stat-value" id="statTotal">0</span></div>
+      <div class="stat-item">☀️ Gündüz: <span class="stat-value" id="statDay">0</span></div>
+      <div class="stat-item">🌙 Gece: <span class="stat-value" id="statNight">0</span></div>
+      <div class="stat-item">🔄 24s: <span class="stat-value" id="statDN">0</span></div>
+      <div class="stat-item">🏳️‍🌸 İzin: <span class="stat-value" style="color:#f472b6" id="statLeave">0</span></div>
+      <div class="stat-item" style="border-left:1px solid var(--border-light);padding-left:16px;margin-left:4px;">⏱️ Toplam Saat: <span class="stat-value" style="color:var(--accent-teal)" id="statHours">0s</span></div>
+    </div>
+  </div>
+
+  <!-- ─── MAIN TABLE ─── -->
+  <main class="main-content">
+    <div class="table-wrapper">
+      <table class="schedule-table" id="scheduleTable">
+        <thead id="tableThead"></thead>
+        <tbody id="tableTbody"></tbody>
+      </table>
+    </div>
+  </main>
+
+</div>
+
+<!-- ─── NURSE MANAGER MODAL ─── -->
+<div class="modal-overlay" id="nurseModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title">👩‍⚕️ Hemşire Listesi</h2>
+      <button class="modal-close" onclick="closeNurseModal()">✕</button>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="newNurseName">Yeni Hemşire Ekle</label>
+      <div style="display:flex;gap:8px;">
+        <input 
+          class="form-input" 
+          type="text" 
+          id="newNurseName" 
+          placeholder="Hemşire adını yazın..." 
+          autocomplete="off"
+        />
+        <button class="btn btn-primary" onclick="addNurse()" id="btn-add-nurse" style="min-width:80px;">Ekle</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Mevcut Hemşireler <span style="font-size:10px;font-weight:400;text-transform:none;">(sıralamak için sürükle-bırak)</span></label>
+      <div class="nurse-list" id="nurseListItems"></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeNurseModal()">Kapat</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── CONFIRM MODAL ─── -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header">
+      <h2 class="modal-title" id="confirmTitle">Emin misiniz?</h2>
+      <button class="modal-close" onclick="closeConfirm()">✕</button>
+    </div>
+    <p id="confirmMessage" style="color:var(--text-secondary);font-size:14px;line-height:1.6;margin-bottom:24px;"></p>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeConfirm()" id="btn-confirm-cancel">İptal</button>
+      <button class="btn btn-danger" onclick="doConfirm()" id="btn-confirm-ok">Evet, Devam Et</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── TOAST ─── -->
+<div class="toast" id="toast">
+  <span class="toast-icon" id="toastIcon">✅</span>
+  <span id="toastMsg">İşlem tamamlandı</span>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
