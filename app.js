@@ -26,19 +26,13 @@ const DEFAULT_NURSES = [
 ];
 
 // ─── State ────────────────────────────────────────────────────────────────────
-// storage shape:
-// {
-//   nurses: [...],
-//   schedule: {
-//     "2026-04": { "NurseName": { 1: "day", 2: "night", ... }, ... },
-//     "2026-05": { ... },
-//     ...
-//   }
-// }
 let storage = loadStorage();
 
 let currentYear  = new Date().getFullYear();
 let currentMonth = new Date().getMonth(); // 0-indexed
+
+let mobileViewMode = 'card'; // 'card' | 'table'
+let _prevIsMobile  = null;
 
 // ─── Storage helpers ──────────────────────────────────────────────────────────
 function loadStorage() {
@@ -46,7 +40,6 @@ function loadStorage() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      // Ensure all fields exist
       if (!parsed.nurses)   parsed.nurses   = [...DEFAULT_NURSES];
       if (!parsed.schedule) parsed.schedule = {};
       return parsed;
@@ -73,7 +66,6 @@ function getMonthSchedule(year, month) {
   if (!storage.schedule[key]) {
     storage.schedule[key] = {};
   }
-  // Ensure every nurse has an entry in this month
   storage.nurses.forEach(name => {
     if (!storage.schedule[key][name]) {
       storage.schedule[key][name] = {};
@@ -99,7 +91,28 @@ function decodeName(encoded) {
   return decodeURIComponent(encoded.replace(/_pct_/g, '%'));
 }
 
-// ─── Render ──────────────────────────────────────────────────────────────────
+// ─── Mobile helpers ───────────────────────────────────────────────────────────
+function isMobile() { return window.innerWidth < 768; }
+
+function debounce(fn, delay) {
+  let timer;
+  return function(...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
+function toggleViewMode() {
+  mobileViewMode = mobileViewMode === 'card' ? 'table' : 'card';
+  const btn = document.getElementById('viewToggleBtn');
+  if (btn) {
+    btn.textContent = mobileViewMode === 'card' ? '📊' : '📋';
+    btn.title = mobileViewMode === 'card' ? 'Tablo Görünümüne Geç' : 'Kart Görünümüne Geç';
+  }
+  renderTable();
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
 function renderAll() {
   renderHeader();
   renderTable();
@@ -107,11 +120,31 @@ function renderAll() {
 }
 
 function renderHeader() {
-  document.getElementById('monthName').textContent = TR_MONTHS[currentMonth];
-  document.getElementById('yearName').textContent  = currentYear;
+  const monthName = TR_MONTHS[currentMonth];
+  const year      = currentYear;
+  document.getElementById('monthName').textContent = monthName;
+  document.getElementById('yearName').textContent  = year;
+  // Mobil floating bar'a da yansıt
+  const mobMonth = document.getElementById('mobMonthName');
+  const mobYear  = document.getElementById('mobYearName');
+  if (mobMonth) mobMonth.textContent = monthName;
+  if (mobYear)  mobYear.textContent  = year;
 }
 
+/** Ekran boyutuna göre uygun render fonksiyonunu çağırır */
 function renderTable() {
+  if (isMobile() && mobileViewMode === 'card') {
+    renderTableMobile();
+  } else {
+    renderTableDesktop();
+  }
+}
+
+/** Masaüstü: standart yatay tablo görünümü */
+function renderTableDesktop() {
+  document.getElementById('desktopView').style.display = '';
+  document.getElementById('mobileView').style.display  = 'none';
+
   const days     = daysInMonth(currentYear, currentMonth);
   const monthSch = getMonthSchedule(currentYear, currentMonth);
   const thead    = document.getElementById('tableThead');
@@ -153,12 +186,11 @@ function renderTable() {
         </div>
       </td>`;
 
-    let shiftCount = 0;
     let shiftHours = 0;
     for (let d = 1; d <= 31; d++) {
       if (d <= days) {
         const shift = monthSch[name][d] || 'empty';
-        if (shift !== 'empty') { shiftCount++; shiftHours += SHIFT_HOURS[shift]; }
+        if (shift !== 'empty') shiftHours += SHIFT_HOURS[shift];
         bodyHTML += `<td class="shift-cell"
           data-nurse="${nurseKey}"
           data-day="${d}"
@@ -174,11 +206,70 @@ function renderTable() {
       <div class="total-badge" id="total-${nurseKey}">
         <span class="hours">${shiftHours}s</span>
       </div>
-    </td>`;
-    bodyHTML += `</tr>`;
+    </td></tr>`;
   });
 
   tbody.innerHTML = bodyHTML;
+}
+
+/** Mobil: her hemşire için haftalık kart satırları */
+function renderTableMobile() {
+  document.getElementById('desktopView').style.display = 'none';
+  document.getElementById('mobileView').style.display  = 'flex';
+
+  const days     = daysInMonth(currentYear, currentMonth);
+  const monthSch = getMonthSchedule(currentYear, currentMonth);
+  let html = '';
+
+  storage.nurses.forEach((name, ni) => {
+    const colors   = AVATAR_COLORS[ni % AVATAR_COLORS.length];
+    const initials = name.substring(0, 2).toUpperCase();
+    const nurseKey = escapeName(name);
+
+    if (!monthSch[name]) monthSch[name] = {};
+
+    // Toplam saat hesapla
+    let shiftHours = 0;
+    for (let d = 1; d <= days; d++) {
+      shiftHours += SHIFT_HOURS[monthSch[name][d] || 'empty'];
+    }
+
+    html += `
+    <div class="nurse-card">
+      <div class="nurse-card-header">
+        <div class="nurse-avatar" style="background:linear-gradient(135deg,${colors[0]},${colors[1]});width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;color:white;">${initials}</div>
+        <span class="nurse-card-name">${name}</span>
+        <div class="nurse-card-total" id="total-${nurseKey}"><span class="hours">${shiftHours}s</span></div>
+      </div>
+      <div class="nurse-card-body">`;
+
+    // 7'li hafta satırları
+    for (let weekStart = 1; weekStart <= days; weekStart += 7) {
+      const weekEnd = Math.min(weekStart + 6, days);
+      html += `<div class="week-row">`;
+
+      for (let d = weekStart; d <= weekEnd; d++) {
+        const dow       = getDayOfWeek(currentYear, currentMonth, d);
+        const isWeekend = dow === 0 || dow === 6;
+        const shift     = monthSch[name][d] || 'empty';
+        html += `<div class="mobile-cell" onclick="cycleShift('${nurseKey}', ${d}, this)">
+            <span class="mob-day-n${isWeekend ? ' weekend' : ''}">${d}</span>
+            <div class="cell-inner ${shift}">${SHIFT_LABELS[shift]}</div>
+          </div>`;
+      }
+
+      // Son satır eksik ise boş hücre (grid hizası için)
+      for (let f = weekEnd - weekStart + 1; f < 7; f++) {
+        html += `<div class="mobile-cell" style="pointer-events:none;opacity:0;"></div>`;
+      }
+
+      html += `</div>`; // .week-row
+    }
+
+    html += `</div></div>`; // .nurse-card-body + .nurse-card
+  });
+
+  document.getElementById('mobileView').innerHTML = html;
 }
 
 function renderStats() {
@@ -218,12 +309,12 @@ function cycleShift(nurseEncoded, day, td) {
   // Persist immediately
   saveStorage();
 
-  // Update cell DOM
+  // Update cell DOM (works for both desktop td and mobile div)
   const inner = td.querySelector('.cell-inner');
   inner.className   = `cell-inner ${next}`;
   inner.textContent = SHIFT_LABELS[next];
 
-  // Update row total
+  // Update row/card total
   updateRowTotal(name, nurseEncoded);
   renderStats();
 }
@@ -231,10 +322,9 @@ function cycleShift(nurseEncoded, day, td) {
 function updateRowTotal(name, nurseKey) {
   const days     = daysInMonth(currentYear, currentMonth);
   const monthSch = getMonthSchedule(currentYear, currentMonth);
-  let count = 0, hours = 0;
+  let hours = 0;
   for (let d = 1; d <= days; d++) {
-    const s = monthSch[name]?.[d] || 'empty';
-    if (s !== 'empty') { count++; hours += SHIFT_HOURS[s]; }
+    hours += SHIFT_HOURS[monthSch[name]?.[d] || 'empty'];
   }
   const el = document.getElementById(`total-${nurseKey}`);
   if (el) {
@@ -242,7 +332,7 @@ function updateRowTotal(name, nurseKey) {
   }
 }
 
-// ─── Month navigation ──────────────────────────────────────────────────────────
+// ─── Month navigation ─────────────────────────────────────────────────────────
 function prevMonth() {
   if (currentMonth === 0) { currentMonth = 11; currentYear--; }
   else currentMonth--;
@@ -278,7 +368,6 @@ function printSchedule() {
   const days      = daysInMonth(currentYear, currentMonth);
   const monthSch  = getMonthSchedule(currentYear, currentMonth);
 
-  // Build table rows
   let headerCells = `<th class="p-nurse">HEMŞİRE</th>`;
   for (let d = 1; d <= days; d++) {
     const dow       = getDayOfWeek(currentYear, currentMonth, d);
@@ -303,7 +392,6 @@ function printSchedule() {
     bodyRows += `<tr class="${rowCls}">${cells}</tr>`;
   });
 
-  // Legend data
   const legendHTML = `
     <div class="legend">
       <span class="lchip day-chip">D</span> Gündüz 08:00–16:00 &nbsp;&nbsp;
@@ -361,7 +449,6 @@ function printSchedule() {
   .day-chip   { background:#fef3c7; color:#92400e; border:1px solid #f59e0b; }
   .night-chip { background:#ede9fe; color:#4c1d95; border:1px solid #8b5cf6; }
   .dn-chip    { background:#ccfbf1; color:#0f766e; border:1px solid #14b8a6; }
-
   table {
     width: 100%;
     border-collapse: collapse;
@@ -380,7 +467,6 @@ function printSchedule() {
   thead th.p-total  { width: 28px; background: #1e40af; }
   thead th.weekend  { background: #2d3a8c; color: #bfdbfe; }
   thead th .dn      { font-size: 6.5px; font-weight: 400; opacity: 0.8; display:block; }
-
   tbody td {
     text-align: center;
     padding: 3px 1px;
@@ -391,7 +477,6 @@ function printSchedule() {
     line-height: 1;
   }
   tbody tr.alt td { background: #f8fafc; }
-
   td.p-nurse-name {
     text-align: left;
     padding-left: 5px;
@@ -414,7 +499,6 @@ function printSchedule() {
   td.cell-night   { background: #ede9fe; color: #4c1d95; }
   td.cell-daynight{ background: #ccfbf1; color: #0f766e; }
   td.cell-leave   { background: #fce7f3; color: #9d174d; }
-
   .footer {
     margin-top: 6px;
     font-size: 7px;
@@ -479,7 +563,6 @@ function downloadTxt() {
   lines.push(`---`);
 
   const content  = lines.join('\n');
-  // Use data URI instead of Blob URL — works with file:// protocol
   const encoded  = 'data:text/plain;charset=utf-8,' + encodeURIComponent(content);
   const a        = document.createElement('a');
   a.href         = encoded;
@@ -544,7 +627,6 @@ function removeNurse(index) {
     `<strong>${name}</strong> hemşiresini listeden çıkarmak istediğinize emin misiniz?\nBu hemşireye ait tüm vardiya verileri de silinecek.`,
     () => {
       storage.nurses.splice(index, 1);
-      // Remove from all months
       Object.keys(storage.schedule).forEach(k => {
         delete storage.schedule[k][name];
       });
@@ -611,20 +693,35 @@ function showToast(icon, msg) {
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  // Enter key on nurse input
+  // Enter tuşu ile hemşire ekleme
   document.getElementById('newNurseName').addEventListener('keydown', e => {
     if (e.key === 'Enter') addNurse();
   });
 
-  // Close nurse modal on backdrop click
+  // Modallarda backdrop'a tıklayınca kapat
   document.getElementById('nurseModal').addEventListener('click', function(e) {
     if (e.target === this) closeNurseModal();
   });
-
-  // Close confirm modal on backdrop click
   document.getElementById('confirmModal').addEventListener('click', function(e) {
     if (e.target === this) closeConfirm();
   });
+
+  // Görünüm toggle butonunu başlat
+  const toggleBtn = document.getElementById('viewToggleBtn');
+  if (toggleBtn) {
+    toggleBtn.textContent = '📊';
+    toggleBtn.title = 'Tablo Görünümüne Geç';
+  }
+
+  // İlk mobil durumunu kaydet; ekran boyutu/yönü değişince yeniden render
+  _prevIsMobile = isMobile();
+  window.addEventListener('resize', debounce(() => {
+    const nowMobile = isMobile();
+    if (nowMobile !== _prevIsMobile) {
+      _prevIsMobile = nowMobile;
+      renderTable();
+    }
+  }, 250));
 
   renderAll();
 });

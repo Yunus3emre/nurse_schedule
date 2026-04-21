@@ -36,16 +36,16 @@
 
     <div class="header-right">
       <button class="btn btn-secondary" onclick="openNurseModal()" id="btn-manage-nurses">
-        👩‍⚕️ Hemşireler
+        👩‍⚕️ <span class="btn-label">Hemşireler</span>
       </button>
       <button class="btn btn-secondary" onclick="printSchedule()" id="btn-print">
-        🖨️ Yazdır
+        🖨️ <span class="btn-label">Yazdır</span>
       </button>
       <button class="btn btn-danger" onclick="clearAll()" id="btn-clear-all">
-        🗑️ Temizle
+        🗑️ <span class="btn-label">Temizle</span>
       </button>
       <button class="btn btn-primary" onclick="downloadTxt()" id="btn-download">
-        ⬇️ TXT İndir
+        ⬇️ <span class="btn-label">TXT İndir</span>
       </button>
     </div>
   </header>
@@ -84,13 +84,29 @@
 
   <!-- ─── MAIN TABLE ─── -->
   <main class="main-content">
-    <div class="table-wrapper">
+    <!-- Masaüstü: tablo görünümü -->
+    <div class="table-wrapper" id="desktopView">
       <table class="schedule-table" id="scheduleTable">
         <thead id="tableThead"></thead>
         <tbody id="tableTbody"></tbody>
       </table>
     </div>
+    <!-- Mobil: kart görünümü (JS tarafından doldurulur) -->
+    <div class="mobile-view" id="mobileView"></div>
   </main>
+
+  <!-- ─── MOBİL FLOATING BOTTOM BAR ─── -->
+  <div class="mobile-fab-bar" id="mobileFabBar">
+    <div class="mob-month-nav">
+      <button class="nav-btn" onclick="prevMonth()" title="Önceki Ay">◀</button>
+      <div class="mob-month-display">
+        <span class="month-name" id="mobMonthName">Nisan</span>
+        <span class="year-name" id="mobYearName">2026</span>
+      </div>
+      <button class="nav-btn" onclick="nextMonth()" title="Sonraki Ay">▶</button>
+    </div>
+    <button class="mob-view-toggle" id="viewToggleBtn" onclick="toggleViewMode()" title="Tablo Görünümüne Geç">📊</button>
+  </div>
 
 </div>
 

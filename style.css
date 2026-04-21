@@ -783,16 +783,252 @@ body::after {
 .table-wrapper::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
 .table-wrapper::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-/* Responsive */
-@media (max-width: 768px) {
+/* ─── MOBILE CARD VIEW ──────────────────────────────────────────────────── */
+
+.mobile-view {
+  display: none; /* JS controls visibility via inline style */
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nurse-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.nurse-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.nurse-card-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.nurse-card-total {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--accent-teal);
+}
+
+.nurse-card-body {
+  padding: 10px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 7 günlük hafta satırı */
+.week-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.mobile-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 5px 2px;
+  min-height: 58px;
+  justify-content: center;
+  transition: background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.mobile-cell:active {
+  background: rgba(255, 255, 255, 0.07);
+  transform: scale(0.91);
+  transition: transform 0.08s ease;
+}
+
+.mobile-cell .mob-day-n {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.mobile-cell .mob-day-n.weekend {
+  color: rgba(244, 114, 182, 0.75);
+}
+
+.mobile-cell .cell-inner {
+  width: 36px;
+  height: 36px;
+}
+
+/* ─── FLOATING BOTTOM BAR (mobil) ──────────────────────────────────────── */
+
+.mobile-fab-bar {
+  display: none; /* sadece mobilde gösterilir */
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: linear-gradient(180deg, rgba(13,20,34,0.96) 0%, rgba(17,24,39,0.99) 100%);
+  border-top: 1px solid var(--border-light);
+  padding: 10px 16px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.mob-month-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  padding: 5px 10px;
+  flex: 1;
+  justify-content: center;
+}
+
+.mob-month-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 110px;
+}
+
+.mob-month-display .month-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.2px;
+}
+
+.mob-month-display .year-name {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.mob-view-toggle {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.mob-view-toggle:active {
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
+  color: white;
+  transform: scale(0.92);
+}
+
+/* ─── RESPONSIVE OVERRIDES (≤ 767px) ──────────────────────────────────── */
+
+@media (max-width: 767px) {
+  /* Header: compact & icon-only buttons */
   .app-header {
-    padding: 0 16px;
+    padding: 10px 12px !important;
     flex-wrap: wrap;
-    height: auto;
-    padding: 12px 16px;
+    height: auto !important;
+    gap: 8px;
+  }
+
+  /* Ay navigasyonu floating bar'a taşındı */
+  .header-center {
+    display: none;
+  }
+
+  .header-left {
+    flex: 1;
     gap: 10px;
   }
-  .header-center { order: 3; width: 100%; justify-content: center; }
-  .main-content { padding: 12px 8px; }
-  .legend-bar { padding: 8px 16px; flex-wrap: wrap; gap: 10px; }
+
+  .header-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+
+  .header-title h1 { font-size: 15px; }
+  .header-title p  { font-size: 11px; }
+
+  .header-right { gap: 6px; }
+
+  /* Buton metinlerini mobilde gizle, sadece ikon göster */
+  .btn-label { display: none; }
+  .btn { padding: 9px 11px; }
+
+  /* Legend bar */
+  .legend-bar {
+    padding: 7px 12px !important;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .legend-label  { display: none; }
+  .legend-spacer { display: none; }
+
+  .legend-items {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .legend-item { font-size: 11px; gap: 5px; }
+
+  .stats-bar {
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+    font-size: 11px;
+  }
+
+  /* Floating bar için alt boşluk */
+  .main-content {
+    padding: 10px 8px 90px !important;
+  }
+
+  /* Tablo modu için momentum scroll */
+  .table-wrapper {
+    -webkit-overflow-scrolling: touch;
+    border-radius: 12px;
+  }
+
+  /* Floating bar göster */
+  .mobile-fab-bar {
+    display: flex;
+  }
+
+  /* Toast'ı floating bar'ın üstüne taşı */
+  .toast {
+    bottom: 92px;
+    right: 16px;
+  }
 }
+
