@@ -398,6 +398,53 @@ body::after {
   color: #f472b666;
 }
 
+/* Weekend column highlight */
+.day-header.weekend {
+  background: rgba(244, 114, 182, 0.12) !important;
+}
+.shift-cell.weekend-col {
+  background: rgba(244, 114, 182, 0.07) !important;
+}
+.shift-cell.weekend-col:hover {
+  background: rgba(244, 114, 182, 0.14) !important;
+}
+
+/* Holiday column highlight */
+.day-header.holiday {
+  background: rgba(251, 146, 60, 0.18) !important;
+}
+.day-header.holiday .day-num {
+  color: #fb923c;
+}
+.day-header.holiday .day-name {
+  color: #fb923c99;
+}
+.shift-cell.holiday-col {
+  background: rgba(251, 146, 60, 0.09) !important;
+}
+.shift-cell.holiday-col:hover {
+  background: rgba(251, 146, 60, 0.18) !important;
+}
+
+/* Mobile weekend + holiday */
+.mob-day-n.holiday {
+  color: #fb923c;
+}
+.mobile-cell.weekend-col .mob-day-n {
+  color: #f472b6;
+}
+.mobile-cell.weekend-col {
+  background: rgba(244, 114, 182, 0.07);
+  border-radius: 6px;
+}
+.mobile-cell.holiday-col {
+  background: rgba(251, 146, 60, 0.09);
+  border-radius: 6px;
+}
+.mobile-cell.holiday-col .mob-day-n {
+  color: #fb923c;
+}
+
 /* Nurse name cell */
 .nurse-name-cell {
   background: var(--bg-secondary);
@@ -783,7 +830,61 @@ body::after {
 .table-wrapper::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
 .table-wrapper::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
+/* ─── NURSE PREFERENCE TOGGLE ──────────────────────────────────────────────── */
+
+.pref-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.pref-btn {
+  width: 30px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.18s ease;
+  opacity: 0.28;
+  line-height: 1;
+}
+
+.pref-btn:hover {
+  opacity: 0.65;
+  background: var(--border-light);
+}
+
+/* Aktif: Gündüz */
+.pref-btn.pref-active-day {
+  opacity: 1;
+  background: var(--shift-day-bg);
+  box-shadow: 0 0 0 1px var(--shift-day-border);
+}
+
+/* Aktif: Fark etmez */
+.pref-btn.pref-active-any {
+  opacity: 0.9;
+  background: var(--border-light);
+}
+
+/* Aktif: Gece */
+.pref-btn.pref-active-night {
+  opacity: 1;
+  background: var(--shift-night-bg);
+  box-shadow: 0 0 0 1px var(--shift-night-border);
+}
+
 /* ─── MOBILE CARD VIEW ──────────────────────────────────────────────────── */
+
 
 .mobile-view {
   display: none; /* JS controls visibility via inline style */

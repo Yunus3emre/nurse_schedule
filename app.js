@@ -19,6 +19,39 @@ const AVATAR_COLORS = [
 
 const STORAGE_KEY = 'nobet_listesi_v2';
 
+// ─── Turkish Public Holidays ──────────────────────────────────────────────────
+// Fixed: [month(0-indexed), day]
+const TR_FIXED_HOLIDAYS = [
+  [0, 1],   // Yılbaşı
+  [3, 23],  // Ulusal Egemenlik ve Çocuk Bayramı
+  [4, 1],   // Emek ve Dayanışma Günü
+  [4, 19],  // Atatürk'ü Anma, Gençlik ve Spor Bayramı
+  [6, 15],  // Demokrasi ve Millî Birlik Günü
+  [7, 30],  // Zafer Bayramı
+  [9, 29],  // Cumhuriyet Bayramı
+];
+
+// Variable (religious) holidays: { year: [[month0, day], ...] }
+const TR_VARIABLE_HOLIDAYS = {
+  2024: [[3,10],[3,11],[3,12],[5,16],[5,17],[5,18],[5,19]],
+  2025: [[2,30],[2,31],[3,1],[5,6],[5,7],[5,8],[5,9]],
+  2026: [[2,20],[2,21],[2,22],[4,27],[4,28],[4,29],[4,30]],
+  2027: [[2,9],[2,10],[2,11],[4,16],[4,17],[4,18],[4,19]],
+};
+
+/** Returns a Set of day numbers that are public holidays for the given year/month */
+function getHolidayDays(year, month) {
+  const days = new Set();
+  TR_FIXED_HOLIDAYS.forEach(([m, d]) => {
+    if (m === month) days.add(d);
+  });
+  const variable = TR_VARIABLE_HOLIDAYS[year] || [];
+  variable.forEach(([m, d]) => {
+    if (m === month) days.add(d);
+  });
+  return days;
+}
+
 // ─── Default nurses ───────────────────────────────────────────────────────────
 const DEFAULT_NURSES = [
   'ElifEce', 'Sümeyye', 'Rabia', 'Beyza', 'Ayşu',
@@ -40,12 +73,13 @@ function loadStorage() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (!parsed.nurses)   parsed.nurses   = [...DEFAULT_NURSES];
-      if (!parsed.schedule) parsed.schedule = {};
+      if (!parsed.nurses)      parsed.nurses      = [...DEFAULT_NURSES];
+      if (!parsed.schedule)    parsed.schedule    = {};
+      if (!parsed.preferences) parsed.preferences = {};
       return parsed;
     }
   } catch (e) { /* ignore */ }
-  return { nurses: [...DEFAULT_NURSES], schedule: {} };
+  return { nurses: [...DEFAULT_NURSES], schedule: {}, preferences: {} };
 }
 
 function saveStorage() {
@@ -89,6 +123,35 @@ function escapeName(name) {
 
 function decodeName(encoded) {
   return decodeURIComponent(encoded.replace(/_pct_/g, '%'));
+}
+
+// ─── Nurse Preferences ───────────────────────────────────────────────────────
+/** Hemsşirenin vardiya tercihini döndürür: 'day' | 'night' | 'any' */
+function getPreference(name) {
+  return (storage.preferences && storage.preferences[name]) || 'any';
+}
+
+/** Tercih butonu tıklanınca çağrılır (nurseEncoded ile) */
+function setPreference(nurseEncoded, pref) {
+  const name = decodeName(nurseEncoded);
+  if (!storage.preferences) storage.preferences = {};
+  storage.preferences[name] = pref;
+  saveStorage();
+  renderNurseList();
+}
+
+/**
+ * Gündüz (day) veya gece (night) ataması için skor döndürür.
+ * Düşük skor = bu vardiya tipine daha uygun.
+ *   - Tercih eşleşiyorsa: -4 (güvenilir öncelik)
+ *   - Fark etmez ('any'):    0
+ *   - Karşı tercih:        +5 (son seçenek)
+ */
+function prefScore(name, shiftType) {
+  const p = getPreference(name);
+  if (p === shiftType) return -4;
+  if (p === 'any')     return  0;
+  return 5;
 }
 
 // ─── Mobile helpers ───────────────────────────────────────────────────────────
@@ -151,6 +214,8 @@ function renderTableDesktop() {
   const tbody    = document.getElementById('tableTbody');
 
   // ── Header row ──
+  const holidays = getHolidayDays(currentYear, currentMonth);
+
   let headerHTML = `<tr>
     <th class="nurse-col-header">Hemşire</th>`;
 
@@ -158,7 +223,9 @@ function renderTableDesktop() {
     if (d <= days) {
       const dow        = getDayOfWeek(currentYear, currentMonth, d);
       const isWeekend  = dow === 0 || dow === 6;
-      headerHTML += `<th class="day-header${isWeekend ? ' weekend' : ''}">
+      const isHoliday  = holidays.has(d) && !isWeekend;
+      const cls = isHoliday ? ' holiday' : isWeekend ? ' weekend' : '';
+      headerHTML += `<th class="day-header${cls}">
         <span class="day-num">${d}</span>
         <span class="day-name">${TR_DAYS_SHORT[dow]}</span>
       </th>`;
@@ -191,7 +258,11 @@ function renderTableDesktop() {
       if (d <= days) {
         const shift = monthSch[name][d] || 'empty';
         if (shift !== 'empty') shiftHours += SHIFT_HOURS[shift];
-        bodyHTML += `<td class="shift-cell"
+        const dow       = getDayOfWeek(currentYear, currentMonth, d);
+        const isWeekend = dow === 0 || dow === 6;
+        const isHoliday = holidays.has(d) && !isWeekend;
+        const colCls    = isHoliday ? ' holiday-col' : isWeekend ? ' weekend-col' : '';
+        bodyHTML += `<td class="shift-cell${colCls}"
           data-nurse="${nurseKey}"
           data-day="${d}"
           onclick="cycleShift('${nurseKey}', ${d}, this)">
@@ -244,6 +315,7 @@ function renderTableMobile() {
       <div class="nurse-card-body">`;
 
     // 7'li hafta satırları
+    const mobHolidays = getHolidayDays(currentYear, currentMonth);
     for (let weekStart = 1; weekStart <= days; weekStart += 7) {
       const weekEnd = Math.min(weekStart + 6, days);
       html += `<div class="week-row">`;
@@ -251,9 +323,12 @@ function renderTableMobile() {
       for (let d = weekStart; d <= weekEnd; d++) {
         const dow       = getDayOfWeek(currentYear, currentMonth, d);
         const isWeekend = dow === 0 || dow === 6;
+        const isHoliday = mobHolidays.has(d) && !isWeekend;
         const shift     = monthSch[name][d] || 'empty';
-        html += `<div class="mobile-cell" onclick="cycleShift('${nurseKey}', ${d}, this)">
-            <span class="mob-day-n${isWeekend ? ' weekend' : ''}">${d}</span>
+        const cellCls   = isHoliday ? ' holiday-col' : isWeekend ? ' weekend-col' : '';
+        const dayCls    = isWeekend ? ' weekend' : isHoliday ? ' holiday' : '';
+        html += `<div class="mobile-cell${cellCls}" onclick="cycleShift('${nurseKey}', ${d}, this)">
+            <span class="mob-day-n${dayCls}">${d}</span>
             <div class="cell-inner ${shift}">${SHIFT_LABELS[shift]}</div>
           </div>`;
       }
@@ -385,11 +460,15 @@ function updateAutoPreview() {
 }
 
 /**
- * Otomatik çizelge algoritması:
- * Her gün için:
- *   1) O gün İzni olan hemşireleri hariç tut
- *   2) Kalan hemşireleri (toplam nöbet sayısı + küçük rastgele) göre sırala
- *   3) İlk minDay hemşireye Gündüz, sonraki minNight hemşireye Gece ata
+ * Otomatik çizelge algoritması — tercih destekli
+ *
+ * Gündüz ataması için:
+ *   ↓ puan = daha önce seçilir
+ *   puan = shiftCount * 2 + prefScore(gece için pozitif) + rand
+ *
+ * Öncelik sırası:
+ *   Gündüz havuzu:  [gündüz-tercihliler] → [fark-etmez] → [gece-tercihliler]
+ *   Gece havuzu:    [gece-tercihliler]  → [fark-etmez] → [gündüz-tercihliler]
  */
 function runAutoSchedule() {
   const minDay   = Math.max(1, parseInt(document.getElementById('autoMinDay').value)   || 2);
@@ -416,7 +495,7 @@ function runAutoSchedule() {
     }
   });
 
-  // Toplam nöbet sayısı takibi (yük dengesi için)
+  // Toplam nöbet sayısı takibi (yük dengesi)
   const shiftCount = {};
   nurses.forEach(n => { shiftCount[n] = 0; });
 
@@ -431,25 +510,30 @@ function runAutoSchedule() {
       continue;
     }
 
-    // Adil + rastgele sıralama:
-    // Az nöbet tutan hemşireler önce gelir, ama ~%40 oranında rastgelelik eklenir
-    const sorted = [...available].sort((a, b) => {
-      const scoreA = shiftCount[a] + Math.random() * 1.2;
-      const scoreB = shiftCount[b] + Math.random() * 1.2;
-      return scoreA - scoreB;
-    });
+    /**
+     * sortForShift: belirtilen vardiya tipi için hemşireleri sıralar.
+     * Bileşenler (düşük = önce seçilir):
+     *   a) prefScore(shiftType) → tercih uyumu
+     *   b) shiftCount * 2       → fazla çalışana ceza
+     *   c) Math.random() * 1.5  → rastgelelik (%~30)
+     */
+    const sortForShift = (pool, shiftType) =>
+      [...pool].sort((a, b) => {
+        const sa = prefScore(a, shiftType) + shiftCount[a] * 2 + Math.random() * 1.5;
+        const sb = prefScore(b, shiftType) + shiftCount[b] * 2 + Math.random() * 1.5;
+        return sa - sb;
+      });
 
-    // Gündüz atamaları
-    for (let i = 0; i < minDay; i++) {
-      sch[sorted[i]][d] = 'day';
-      shiftCount[sorted[i]]++;
-    }
+    // Gündüz ataması
+    const dayPool     = sortForShift(available, 'day');
+    const dayAssigned = dayPool.slice(0, minDay);
+    dayAssigned.forEach(n => { sch[n][d] = 'day'; shiftCount[n]++; });
 
-    // Gece atamaları
-    for (let i = minDay; i < perDay; i++) {
-      sch[sorted[i]][d] = 'night';
-      shiftCount[sorted[i]]++;
-    }
+    // Atanmamış kalan hemşireler gece havuzuna alınır
+    const remaining     = available.filter(n => !dayAssigned.includes(n));
+    const nightPool     = sortForShift(remaining, 'night');
+    const nightAssigned = nightPool.slice(0, minNight);
+    nightAssigned.forEach(n => { sch[n][d] = 'night'; shiftCount[n]++; });
   }
 
   saveStorage();
@@ -457,11 +541,12 @@ function runAutoSchedule() {
   renderAll();
 
   const label = `${TR_MONTHS[currentMonth]} ${currentYear}`;
-  if (skipped > 0) {
-    showToast('⚠️', `Oluşturuldu — ${skipped} gün atlandı (yetersiz hemşire)`);
-  } else {
-    showToast('🎲', `${label} çizelgesi otomatik oluşturuldu!`);
-  }
+  showToast(
+    skipped > 0 ? '⚠️' : '🎲',
+    skipped > 0
+      ? `Oluşturuldu — ${skipped} gün atlandı (yetersiz hemşire)`
+      : `${label} çizelgesi tercihler gözönünde bulundurularak oluşturuldu!`
+  );
 }
 
 // ─── Month navigation ─────────────────────────────────────────────────────────
@@ -483,7 +568,7 @@ function clearAll() {
   const label = `${TR_MONTHS[currentMonth]} ${currentYear}`;
   showConfirm(
     `🗑️ ${label} Temizlensin mi?`,
-    `<strong>${label}</strong> ayına ait tüm nöbet verileri kalıcı olarak silinecek.\nDevam etmek istiyor musunuz?`,
+    `${label} ayına ait tüm nöbet verileri silinecek. Bu işlem geri alınamaz.`,
     () => {
       const key = monthKey(currentYear, currentMonth);
       storage.schedule[key] = {};
@@ -502,10 +587,14 @@ function printSchedule() {
   const monthSch  = getMonthSchedule(currentYear, currentMonth);
 
   let headerCells = `<th class="p-nurse">HEMŞİRE</th>`;
+  const printHolidays = getHolidayDays(currentYear, currentMonth);
+
   for (let d = 1; d <= days; d++) {
     const dow       = getDayOfWeek(currentYear, currentMonth, d);
     const isWeekend = dow === 0 || dow === 6;
-    headerCells += `<th class="${isWeekend ? 'weekend' : ''}">${d}<br><span class="dn">${TR_DAYS_SHORT[dow]}</span></th>`;
+    const isHoliday = printHolidays.has(d) && !isWeekend;
+    const hCls = isHoliday ? 'holiday' : isWeekend ? 'weekend' : '';
+    headerCells += `<th class="${hCls}">${d}<br><span class="dn">${TR_DAYS_SHORT[dow]}</span></th>`;
   }
   headerCells += `<th class="p-total">TOPLAM</th>`;
 
@@ -516,9 +605,13 @@ function printSchedule() {
     for (let d = 1; d <= days; d++) {
       const s = monthSch[name]?.[d] || 'empty';
       if (s !== 'empty') hours += SHIFT_HOURS[s];
-      const label = SHIFT_LABELS[s];
-      const cls   = s !== 'empty' ? `cell-${s}` : '';
-      cells += `<td class="${cls}">${label}</td>`;
+      const label     = SHIFT_LABELS[s];
+      const dow       = getDayOfWeek(currentYear, currentMonth, d);
+      const isWeekend = dow === 0 || dow === 6;
+      const isHoliday = printHolidays.has(d) && !isWeekend;
+      const colCls    = isHoliday ? 'col-holiday' : isWeekend ? 'col-weekend' : '';
+      const shiftCls  = s !== 'empty' ? `cell-${s}` : '';
+      cells += `<td class="${[colCls, shiftCls].filter(Boolean).join(' ')}">${label}</td>`;
     }
     cells += `<td class="p-total-cell">${hours}s</td>`;
     const rowCls = ni % 2 === 1 ? 'alt' : '';
@@ -529,7 +622,9 @@ function printSchedule() {
     <div class="legend">
       <span class="lchip day-chip">D</span> Gündüz 08:00–16:00 &nbsp;&nbsp;
       <span class="lchip night-chip">N</span> Gece 16:00–08:00 &nbsp;&nbsp;
-      <span class="lchip dn-chip">D/N</span> 24 Saat 08:00–08:00
+      <span class="lchip dn-chip">D/N</span> 24 Saat 08:00–08:00 &nbsp;&nbsp;
+      <span class="lchip weekend-chip">C/P</span> Hafta Sonu &nbsp;&nbsp;
+      <span class="lchip holiday-chip">T</span> Resmi Tatil
     </div>`;
 
   const html = `<!DOCTYPE html>
@@ -598,7 +693,8 @@ function printSchedule() {
   }
   thead th.p-nurse  { width: 68px; text-align: left; padding-left: 5px; }
   thead th.p-total  { width: 28px; background: #1e40af; }
-  thead th.weekend  { background: #2d3a8c; color: #bfdbfe; }
+  thead th.weekend  { background: #831843; color: #fce7f3; }
+  thead th.holiday  { background: #7c2d12; color: #ffedd5; }
   thead th .dn      { font-size: 6.5px; font-weight: 400; opacity: 0.8; display:block; }
   tbody td {
     text-align: center;
@@ -632,6 +728,18 @@ function printSchedule() {
   td.cell-night   { background: #ede9fe; color: #4c1d95; }
   td.cell-daynight{ background: #ccfbf1; color: #0f766e; }
   td.cell-leave   { background: #fce7f3; color: #9d174d; }
+  td.col-weekend  { background: #fdf2f8; }
+  td.col-holiday  { background: #fff7ed; }
+  td.col-weekend.cell-day     { background: #fde8ef; }
+  td.col-weekend.cell-night   { background: #f3e8fd; }
+  td.col-weekend.cell-daynight{ background: #e8fdf8; }
+  td.col-weekend.cell-leave   { background: #fce7f3; }
+  td.col-holiday.cell-day     { background: #fef0d0; }
+  td.col-holiday.cell-night   { background: #ede9fe; }
+  td.col-holiday.cell-daynight{ background: #ccfbf1; }
+  td.col-holiday.cell-leave   { background: #fce7f3; }
+  .weekend-chip { background:#fce7f3; color:#831843; border:1px solid #f9a8d4; }
+  .holiday-chip { background:#ffedd5; color:#7c2d12; border:1px solid #fdba74; }
   .footer {
     margin-top: 6px;
     font-size: 7px;
@@ -707,6 +815,98 @@ function downloadTxt() {
   showToast('✅', `${TR_MONTHS[currentMonth]} ${year} dosyası indirildi`);
 }
 
+// ─── Import / Export Data ─────────────────────────────────────────────────────
+
+async function exportData() {
+  const mk = monthKey(currentYear, currentMonth);
+  const monthData = storage.schedule[mk] || {};
+  
+  const payload = {
+    type: 'nurse_monthly_export',
+    schedule: monthData
+  };
+
+  const dataStr = JSON.stringify(payload, null, 2);
+
+  try {
+    // Modern Tarayıcılarda Klasör / Dosya Seçme Penceresi Aç (Save As)
+    if (window.showSaveFilePicker) {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: `nobet_${mk}.json`,
+        types: [{
+          description: 'JSON Dosyası',
+          accept: { 'application/json': ['.json'] },
+        }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(dataStr);
+      await writable.close();
+      showToast('💾', `${TR_MONTHS[currentMonth]} ${currentYear} dışa aktarıldı`);
+    } else {
+      // Eski Tarayıcılar için Fallback
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `nobet_${mk}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('💾', `${TR_MONTHS[currentMonth]} ${currentYear} dışa aktarıldı`);
+    }
+  } catch (err) {
+    // Kullanıcı pencereyi iptal etmezse hatayı göster
+    if (err.name !== 'AbortError') {
+      showToast('❌', 'Dışa aktarma başarısız oldu!');
+      console.error(err);
+    }
+  }
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (parsed.type === 'nurse_monthly_export' && parsed.schedule) {
+        const label = `${TR_MONTHS[currentMonth]} ${currentYear}`;
+        showConfirm(
+          `📂 ${label} İçe Aktarılsın mı?`,
+          `Dosyadaki tüm nöbetler o an ekranda açık olan <strong>${label}</strong> ayının üzerine yazılacak. Onaylıyor musunuz?`,
+          () => {
+            const mk = monthKey(currentYear, currentMonth);
+            storage.schedule[mk] = parsed.schedule;
+            
+            // Eğer dosyada listede olmayan bir hemşire varsa onu ana hemşire listesine ekle
+            Object.keys(parsed.schedule).forEach(nurse => {
+              if (!storage.nurses.includes(nurse)) {
+                storage.nurses.push(nurse);
+              }
+            });
+            
+            saveStorage();
+            renderNurseList();
+            renderAll();
+            document.getElementById('importFile').value = ''; // Reset input
+            showToast('📂', `${label} verileri başarıyla içe aktarıldı`);
+          }
+        );
+      } else {
+        showToast('❌', 'Geçersiz ay yedek dosyası!');
+        document.getElementById('importFile').value = '';
+      }
+    } catch (err) {
+      showToast('❌', 'Dosya okunamadı!');
+      document.getElementById('importFile').value = '';
+    }
+  };
+  reader.readAsText(file);
+}
+
 // ─── Nurse Manager Modal ──────────────────────────────────────────────────────
 function openNurseModal() {
   renderNurseList();
@@ -719,23 +919,31 @@ function closeNurseModal() {
 
 function renderNurseList() {
   const list = document.getElementById('nurseListItems');
-  list.innerHTML = storage.nurses.map((name, i) => `
+  list.innerHTML = storage.nurses.map((name, i) => {
+    const pref = getPreference(name);
+    const enc  = escapeName(name);
+    const avatarStyle =
+      `background:linear-gradient(135deg,${AVATAR_COLORS[i%AVATAR_COLORS.length][0]},${AVATAR_COLORS[i%AVATAR_COLORS.length][1]});` +
+      `width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;` +
+      `font-size:11px;font-weight:700;flex-shrink:0;color:white;`;
+    return `
     <div class="nurse-list-item" draggable="true" data-index="${i}"
          ondragstart="dragStart(event)" ondragover="dragOver(event)" ondrop="dropItem(event)">
       <span class="drag-handle">⠿</span>
-      <span class="nurse-avatar" style="
-        background:linear-gradient(135deg,${AVATAR_COLORS[i % AVATAR_COLORS.length][0]},${AVATAR_COLORS[i % AVATAR_COLORS.length][1]});
-        width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
-        font-size:11px;font-weight:700;flex-shrink:0;color:white;">
-        ${name.substring(0, 2).toUpperCase()}
-      </span>
+      <span class="nurse-avatar" style="${avatarStyle}">${name.substring(0,2).toUpperCase()}</span>
       <span class="nurse-item-name">${name}</span>
+      <div class="pref-toggle" title="Vardiya Tercihi">
+        <button class="pref-btn${pref==='day'?' pref-active-day':''}"   onclick="setPreference('${enc}','day')"   title="Gündüz tercih et">☀️</button>
+        <button class="pref-btn${pref==='any'?' pref-active-any':''}"   onclick="setPreference('${enc}','any')"   title="Fark etmez">⚖️</button>
+        <button class="pref-btn${pref==='night'?' pref-active-night':''}" onclick="setPreference('${enc}','night')" title="Gece tercih et">🌙</button>
+      </div>
       <div class="nurse-item-actions">
         <button class="icon-btn" onclick="removeNurse(${i})" title="Sil">🗑️</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
+
 
 function addNurse() {
   const input = document.getElementById('newNurseName');
@@ -760,6 +968,8 @@ function removeNurse(index) {
     `<strong>${name}</strong> hemşiresini listeden çıkarmak istediğinize emin misiniz?\nBu hemşireye ait tüm vardiya verileri de silinecek.`,
     () => {
       storage.nurses.splice(index, 1);
+      // Tercih ve veriyi temizle
+      if (storage.preferences) delete storage.preferences[name];
       Object.keys(storage.schedule).forEach(k => {
         delete storage.schedule[k][name];
       });
@@ -809,8 +1019,9 @@ function closeConfirm() {
 }
 
 function doConfirm() {
+  const cb = confirmCallback;
   closeConfirm();
-  if (confirmCallback) confirmCallback();
+  if (cb) cb();
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -824,7 +1035,16 @@ function showToast(icon, msg) {
   toastTimeout = setTimeout(() => toast.classList.remove('show'), 3200);
 }
 
+// ─── Menu Modal ─────────────────────────────────────────────────────────────────
+function openMenuModal() {
+  document.getElementById('menuModal').classList.add('open');
+}
+function closeMenuModal() {
+  document.getElementById('menuModal').classList.remove('open');
+}
+
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
+
 document.addEventListener('DOMContentLoaded', () => {
   // Enter tuşu ile hemşire ekleme
   document.getElementById('newNurseName').addEventListener('keydown', e => {
@@ -840,6 +1060,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('autoModal').addEventListener('click', function(e) {
     if (e.target === this) closeAutoModal();
+  });
+  document.getElementById('menuModal').addEventListener('click', function(e) {
+    if (e.target === this) closeMenuModal();
   });
 
 

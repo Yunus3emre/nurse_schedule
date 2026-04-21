@@ -35,21 +35,10 @@
     </div>
 
     <div class="header-right">
-      <button class="btn btn-secondary" onclick="openAutoModal()" id="btn-auto-schedule">
-        🎲 <span class="btn-label">Otomatik</span>
+      <button class="btn btn-primary" onclick="openMenuModal()" id="btn-main-menu">
+        ⚙️ <span class="btn-label">İşlemler Menüsü</span>
       </button>
-      <button class="btn btn-secondary" onclick="openNurseModal()" id="btn-manage-nurses">
-        👩‍⚕️ <span class="btn-label">Hemşireler</span>
-      </button>
-      <button class="btn btn-secondary" onclick="printSchedule()" id="btn-print">
-        🖨️ <span class="btn-label">Yazdır</span>
-      </button>
-      <button class="btn btn-danger" onclick="clearAll()" id="btn-clear-all">
-        🗑️ <span class="btn-label">Temizle</span>
-      </button>
-      <button class="btn btn-primary" onclick="downloadTxt()" id="btn-download">
-        ⬇️ <span class="btn-label">TXT İndir</span>
-      </button>
+      <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importData(event)" />
     </div>
   </header>
 
@@ -72,6 +61,14 @@
       <div class="legend-item">
         <span class="legend-chip chip-leave">İ</span>
         Yıllık İzin
+      </div>
+      <div class="legend-item" style="border-left:1px solid var(--border-light);padding-left:12px;margin-left:4px;">
+        <span class="legend-chip" style="background:rgba(244,114,182,0.18);color:#f472b6;border-color:#f472b6;">C/P</span>
+        Hafta Sonu
+      </div>
+      <div class="legend-item">
+        <span class="legend-chip" style="background:rgba(251,146,60,0.18);color:#fb923c;border-color:#fb923c;">T</span>
+        Resmi Tatil
       </div>
     </div>
     <div class="legend-spacer"></div>
@@ -112,6 +109,35 @@
   </div>
 
 </div>
+
+  <!-- ─── MENU MODAL ─── -->
+  <div class="modal-overlay" id="menuModal">
+    <div class="modal" style="max-width: 340px;">
+      <div class="modal-header">
+        <h2 class="modal-title">⚙️ İşlemler</h2>
+        <button class="modal-close" onclick="closeMenuModal()">✕</button>
+      </div>
+      
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px;">
+        <button class="btn btn-secondary" style="justify-content: flex-start; padding: 12px; font-size: 14px;" onclick="closeMenuModal(); openAutoModal();">🎲 Otomatik Çizelge Oluştur</button>
+        <button class="btn btn-secondary" style="justify-content: flex-start; padding: 12px; font-size: 14px;" onclick="closeMenuModal(); openNurseModal();">👩‍⚕️ Hemşire Yönetimi</button>
+        
+        <div style="height: 1px; background: var(--border-color); margin: 4px 0;"></div>
+        
+        <button class="btn btn-secondary" style="justify-content: flex-start; padding: 12px; font-size: 14px;" onclick="closeMenuModal(); exportData();">💾 Mevcut Ayı Dışa Aktar (Yedekle)</button>
+        <button class="btn btn-secondary" style="justify-content: flex-start; padding: 12px; font-size: 14px;" onclick="closeMenuModal(); document.getElementById('importFile').click();">📂 Üzerine İçe Aktar (Geri Yükle)</button>
+        
+        <div style="height: 1px; background: var(--border-color); margin: 4px 0;"></div>
+
+        <button class="btn btn-secondary" style="justify-content: flex-start; padding: 12px; font-size: 14px;" onclick="closeMenuModal(); printSchedule();">🖨️ Yazdır (A4)</button>
+        <button class="btn btn-secondary" style="justify-content: flex-start; padding: 12px; font-size: 14px;" onclick="closeMenuModal(); downloadTxt();">⬇️ TXT Formatında İndir</button>
+        
+        <div style="height: 1px; background: var(--border-color); margin: 4px 0;"></div>
+
+        <button class="btn btn-danger" style="justify-content: flex-start; padding: 12px; font-size: 14px; background: rgba(239, 68, 68, 0.1); color: #ef4444;" onclick="closeMenuModal(); clearAll();">🗑️ Ekranda Görünen Ayı Temizle</button>
+      </div>
+    </div>
+  </div>
 
 <!-- ─── AUTO SCHEDULE MODAL ─── -->
 <div class="modal-overlay" id="autoModal">
@@ -177,7 +203,7 @@
     </div>
 
     <div class="form-group">
-      <label class="form-label">Mevcut Hemşireler <span style="font-size:10px;font-weight:400;text-transform:none;">(sıralamak için sürükle-bırak)</span></label>
+      <label class="form-label">Mevcut Hemşireler <span style="font-size:10px;font-weight:400;text-transform:none;">(sıralamak için sürükle-bırak · ☀️⚖️🌙 =vardiya tercihi)</span></label>
       <div class="nurse-list" id="nurseListItems"></div>
     </div>
 
