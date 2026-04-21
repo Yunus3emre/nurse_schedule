@@ -1,0 +1,46 @@
+{
+  "type": "nurse_monthly_export",
+  "schedule": {
+    "ElifEce": {
+      "12": "leave",
+      "13": "off",
+      "14": "off",
+      "15": "leave"
+    },
+    "Sümeyye": {},
+    "Rabia": {
+      "27": "off",
+      "28": "off"
+    },
+    "Beyza": {
+      "13": "off",
+      "14": "off",
+      "20": "off",
+      "21": "off"
+    },
+    "Ayşu": {
+      "20": "off",
+      "21": "off"
+    },
+    "Damla": {
+      "18": "daynight",
+      "19": "empty",
+      "25": "daynight",
+      "26": "empty"
+    },
+    "Ayşenur": {},
+    "Ceren": {},
+    "Berivan": {},
+    "Ayşe": {
+      "6": "off",
+      "7": "off",
+      "13": "empty",
+      "14": "empty"
+    },
+    "asdas": {
+      "12": "leave",
+      "13": "off",
+      "14": "off"
+    }
+  }
+}

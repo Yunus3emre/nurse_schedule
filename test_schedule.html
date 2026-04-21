@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>Çizelge Test Paneli</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    margin: 0;
+    padding: 24px;
+  }
+  h1 { color: #60a5fa; font-size: 1.4em; margin: 0 0 4px; }
+  .subtitle { color: #64748b; font-size: 0.85em; margin-bottom: 24px; }
+
+  /* ── Controls ── */
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+    background: #1e293b;
+    padding: 16px;
+    border-radius: 10px;
+    margin-bottom: 24px;
+  }
+  .ctrl-group { display: flex; flex-direction: column; gap: 4px; }
+  label { font-size: 0.75em; color: #94a3b8; }
+  select, input[type=number] {
+    background: #0f172a;
+    color: #e2e8f0;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 0.9em;
+  }
+  .btn {
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 22px;
+    font-size: 0.95em;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.15s;
+  }
+  .btn:hover { background: #1d4ed8; }
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    font-weight: 400;
+  }
+  .btn-ghost:hover { background: #1e293b; color: #e2e8f0; }
+
+  /* ── Check Cards ── */
+  .checks {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .card.pass { border-color: #16a34a; background: #052e16; }
+  .card.fail { border-color: #dc2626; background: #1c0707; }
+  .card.warn { border-color: #d97706; background: #1c1007; }
+  .card-title {
+    font-size: 0.8em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #94a3b8;
+    margin-bottom: 10px;
+  }
+  .card.pass .card-title { color: #4ade80; }
+  .card.fail .card-title { color: #f87171; }
+  .card.warn .card-title { color: #fbbf24; }
+  .verdict {
+    font-size: 1.5em;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .card.pass .verdict { color: #4ade80; }
+  .card.fail .verdict { color: #f87171; }
+  .card.warn .verdict { color: #fbbf24; }
+
+  /* ── Bar Chart ── */
+  .bar-list { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+  .bar-row { display: flex; align-items: center; gap: 8px; font-size: 0.78em; }
+  .bar-name { width: 72px; color: #cbd5e1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-track { flex: 1; background: #0f172a; border-radius: 4px; height: 14px; position: relative; }
+  .bar-fill { height: 100%; border-radius: 4px; min-width: 2px; }
+  .bar-fill.ok    { background: #2563eb; }
+  .bar-fill.over  { background: #dc2626; }
+  .bar-fill.under { background: #d97706; }
+  .bar-val { width: 44px; text-align: right; color: #94a3b8; }
+  .bar-delta { width: 48px; text-align: right; font-weight: 600; }
+  .bar-delta.pos { color: #f87171; }
+  .bar-delta.neg { color: #fbbf24; }
+  .bar-delta.zero { color: #4ade80; }
+
+  /* ── Schedule Table ── */
+  .tbl-wrap { overflow-x: auto; }
+  table {
+    border-collapse: collapse;
+    font-size: 0.72em;
+    min-width: 100%;
+  }
+  th, td {
+    border: 1px solid #1e293b;
+    padding: 3px 5px;
+    text-align: center;
+    white-space: nowrap;
+  }
+  thead th { background: #1e293b; color: #94a3b8; position: sticky; top: 0; }
+  th.we  { color: #f87171; }
+  th.hol { color: #fbbf24; }
+  td.nurse-name { text-align: left; padding: 3px 8px; color: #e2e8f0; font-weight: 500; position: sticky; left: 0; background: #0f172a; }
+  td.D   { background: #14532d; color: #4ade80; font-weight: 700; }
+  td.N   { background: #1e1b4b; color: #a5b4fc; font-weight: 700; }
+  td.B   { background: #1c1917; color: #78716c; }
+  td.Si  { background: #422006; color: #fb923c; }
+  td.stat { background: #1e293b; color: #94a3b8; }
+  .tbl-footer { font-size: 0.78em; color: #64748b; margin-top: 6px; }
+
+  .divider { border: none; border-top: 1px solid #1e293b; margin: 24px 0; }
+  .section-title { font-size: 0.85em; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+  .empty-state { color: #475569; text-align: center; padding: 48px; font-size: 1.1em; }
+</style>
+</head>
+<body>
+
+<h1>🧪 Çizelge Test Paneli</h1>
+<p class="subtitle">Ay seç → çizelge oluştur → 3 kuralı otomatik kontrol et</p>
+
+<div class="controls">
+  <div class="ctrl-group">
+    <label>AY</label>
+    <select id="selMonth">
+      <option value="0">Ocak</option><option value="1">Şubat</option>
+      <option value="2">Mart</option><option value="3">Nisan</option>
+      <option value="4">Mayıs</option><option value="5">Haziran</option>
+      <option value="6">Temmuz</option><option value="7">Ağustos</option>
+      <option value="8">Eylül</option><option value="9">Ekim</option>
+      <option value="10">Kasım</option><option value="11">Aralık</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label>YIL</label>
+    <select id="selYear">
+      <option>2024</option><option>2025</option>
+      <option selected>2026</option><option>2027</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label>HİÇ G (Hafta içi)</label>
+    <input type="number" id="minDay" value="2" min="1" max="8" style="width:70px">
+  </div>
+  <div class="ctrl-group">
+    <label>GECE N (Hafta içi)</label>
+    <input type="number" id="minNight" value="2" min="1" max="8" style="width:70px">
+  </div>
+  <div class="ctrl-group">
+    <label>G (Haftasonu)</label>
+    <input type="number" id="minDayWe" value="1" min="1" max="8" style="width:70px">
+  </div>
+  <div class="ctrl-group">
+    <label>N (Haftasonu)</label>
+    <input type="number" id="minNightWe" value="1" min="1" max="8" style="width:70px">
+  </div>
+  <div class="ctrl-group">
+    <label>HEMŞİRELER (virgülle)</label>
+    <input type="text" id="nurseList" value="ElifEce,Sümeyye,Rabia,Beyza,Ayşu,Damla,Berivan,Ayşe"
+      style="width:320px">
+  </div>
+  <div class="ctrl-group" style="flex-direction:row;gap:8px;align-items:flex-end">
+    <button class="btn" onclick="generate()">▶ Oluştur &amp; Test Et</button>
+    <button class="btn btn-ghost" onclick="regenerate()">🔄 Yeniden Dene</button>
+  </div>
+</div>
+
+<div id="checksArea"><p class="empty-state">Ay seçip "Oluştur & Test Et" butonuna bas.</p></div>
+<hr class="divider" id="divTable" style="display:none">
+<div id="tableArea"></div>
+
+<script>
+// ─── Algoritma (DOM bağımsız kopya) ─────────────────────────────────────────
+
+const SHIFT_HOURS = { empty: 0, day: 8, night: 16, daynight: 24, off: 0, leave: 0 };
+const TR_MONTHS   = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+const TR_DAYS_S   = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
+
+const TR_FIXED_HOLIDAYS = [[0,1],[3,23],[4,1],[4,19],[6,15],[7,30],[9,29]];
+const TR_VAR_HOLIDAYS   = {
+  2024:[[3,10],[3,11],[3,12],[5,16],[5,17],[5,18],[5,19]],
+  2025:[[2,30],[2,31],[3,1],[5,6],[5,7],[5,8],[5,9]],
+  2026:[[2,20],[2,21],[2,22],[4,27],[4,28],[4,29],[4,30]],
+  2027:[[2,9],[2,10],[2,11],[4,16],[4,17],[4,18],[4,19]],
+};
+
+function getHolidayDays(year, month) {
+  const s = new Set();
+  TR_FIXED_HOLIDAYS.forEach(([m,d]) => { if (m===month) s.add(d); });
+  (TR_VAR_HOLIDAYS[year]||[]).forEach(([m,d]) => { if (m===month) s.add(d); });
+  return s;
+}
+function daysInMonth(y,m) { return new Date(y,m+1,0).getDate(); }
+function getDow(y,m,d)    { return new Date(y,m,d).getDay(); }
+
+function generate() {
+  _lastParams = readParams();
+  _lastResult = generateSchedule(_lastParams);
+  render(_lastParams, _lastResult);
+}
+function regenerate() {
+  if (!_lastParams) return;
+  _lastResult = generateSchedule(_lastParams);
+  render(_lastParams, _lastResult);
+}
+
+let _lastParams = null, _lastResult = null;
+
+function readParams() {
+  const month   = parseInt(document.getElementById('selMonth').value);
+  const year    = parseInt(document.getElementById('selYear').value);
+  const minDay  = Math.max(1, parseInt(document.getElementById('minDay').value)||2);
+  const minNight= Math.max(1, parseInt(document.getElementById('minNight').value)||2);
+  const minDayWe  = Math.max(1, parseInt(document.getElementById('minDayWe').value)||1);
+  const minNightWe= Math.max(1, parseInt(document.getElementById('minNightWe').value)||1);
+  const nurses  = document.getElementById('nurseList').value
+    .split(',').map(s=>s.trim()).filter(Boolean);
+  return { year, month, minDay, minNight, minDayWe, minNightWe, nurses };
+}
+
+function generateSchedule({ nurses, year, month, minDay, minNight, minDayWe, minNightWe }) {
+  const days     = daysInMonth(year, month);
+  const holidays = getHolidayDays(year, month);
+
+  const sch = {};
+  nurses.forEach(n => { sch[n] = {}; });
+
+  const hourLoad    = {}; nurses.forEach(n => { hourLoad[n] = 0; });
+  const weekendLoad = {}; nurses.forEach(n => { weekendLoad[n] = 0; });
+
+  function isAvailable(nurse, day, shiftType) {
+    const cur  = sch[nurse][day];
+    if (cur !== 'empty' && cur !== undefined) return false;
+    const prev = sch[nurse][day-1];
+    if (prev === 'night' || prev === 'daynight') return false;
+    if (shiftType === 'day' && prev === 'day') {
+      let streak = 1;
+      for (let i = day-2; i >= 1; i--) {
+        if (sch[nurse][i] === 'day') streak++; else break;
+      }
+      if (streak >= 2) return false;
+    }
+    return true;
+  }
+
+  function restDays(nurse, day) {
+    let rest = 0;
+    for (let i = day-1; i >= 1; i--) {
+      const s = sch[nurse][i];
+      if (!s || s==='empty'||s==='off') rest++;
+      else if (s==='day') return rest;
+      else return 0;
+    }
+    return 0;
+  }
+
+  const sort = (pool, st, isWe, day) =>
+    [...pool].sort((a,b) => {
+      const sa = (hourLoad[a]/8)*2 + (restDays(a,day)>=3?-4:0) + (isWe?weekendLoad[a]*2:0) + Math.random()*1.5;
+      const sb = (hourLoad[b]/8)*2 + (restDays(b,day)>=3?-4:0) + (isWe?weekendLoad[b]*2:0) + Math.random()*1.5;
+      return sa - sb;
+    });
+
+  let skipped = 0;
+  const skippedDays = [];
+
+  for (let d = 1; d <= days; d++) {
+    const dow     = getDow(year, month, d);
+    const isWe    = dow===0||dow===6;
+    const isHol   = holidays.has(d) && !isWe;
+    const useWe   = isWe || isHol;
+    const needD   = useWe ? minDayWe   : minDay;
+    const needN   = useWe ? minNightWe : minNight;
+
+    const avD = nurses.filter(n => isAvailable(n,d,'day'));
+    const avN = nurses.filter(n => isAvailable(n,d,'night'));
+    const dayA = sort(avD,'day',useWe,d).slice(0, needD);
+    if (dayA.length < needD) { skipped++; skippedDays.push(d); continue; }
+
+    const dSet = new Set(dayA);
+    const nigA = sort(avN.filter(n=>!dSet.has(n)),'night',useWe,d).slice(0, needN);
+    if (nigA.length < needN) { skipped++; skippedDays.push(d); continue; }
+
+    dayA.forEach(n => { sch[n][d]='day';   hourLoad[n]+=8;  if(useWe) weekendLoad[n]++; });
+    nigA.forEach(n => { sch[n][d]='night'; hourLoad[n]+=16; if(useWe) weekendLoad[n]++; });
+  }
+
+  // Boş gün sayısı
+  const offLoad = {};
+  nurses.forEach(n => {
+    offLoad[n] = 0;
+    for (let d = 1; d <= days; d++) {
+      const s = sch[n][d];
+      if (!s || s === 'empty' || s === 'off') offLoad[n]++;
+    }
+  });
+
+  return { sch, hourLoad, weekendLoad, offLoad, skipped, skippedDays };
+}
+
+// ─── Render ─────────────────────────────────────────────────────────────────
+
+function render(params, result) {
+  const { nurses, year, month } = params;
+  const { sch, hourLoad, weekendLoad, offLoad, skipped, skippedDays } = result;
+
+  // ── 3 kontrol kartı ──
+  const hourVals    = nurses.map(n => hourLoad[n]);
+  const weVals      = nurses.map(n => weekendLoad[n]);
+  const offVals     = nurses.map(n => offLoad[n]);
+
+  const checksHtml = `
+    <p class="section-title">📊 Kontrol Sonuçları — ${TR_MONTHS[month]} ${year}</p>
+    <div class="checks">
+      ${makeCard('1', '⏱ Mesai Saati Eşitliği', '±8 saat tolerans', hourVals, nurses, hourLoad, 'h', 8)}
+      ${makeCard('2', '📅 Haftasonu Gün Eşitliği', '±1 gün tolerans', weVals, nurses, weekendLoad, 'gün', 1)}
+      ${makeCard('3', '🏖 Boş Gün Eşitliği', '±1 gün tolerans', offVals, nurses, offLoad, 'gün', 1)}
+    </div>
+    ${skipped > 0 ? `<p style="color:#fbbf24;font-size:0.85em">⚠️ ${skipped} gün atlandı (yetersiz hemşire): ${skippedDays.join(', ')}</p>` : ''}
+  `;
+  document.getElementById('checksArea').innerHTML = checksHtml;
+
+  // ── Çizelge tablosu ──
+  document.getElementById('divTable').style.display = '';
+  document.getElementById('tableArea').innerHTML =
+    `<p class="section-title">📋 Oluşturulan Çizelge</p>` +
+    `<div class="tbl-wrap">${buildTable(params, result)}</div>` +
+    `<p class="tbl-footer">D = Gündüz (8 s) &nbsp;|&nbsp; N = Gece (16 s) &nbsp;|&nbsp; B = Boş &nbsp;|&nbsp; Sİ = Senelik İzin</p>`;
+}
+
+function makeCard(num, title, tolerance, vals, nurses, loadMap, unit, tol) {
+  const avg    = vals.reduce((a,b)=>a+b,0) / vals.length;
+  const max    = Math.max(...vals);
+  const min    = Math.min(...vals);
+  const spread = max - min;
+  const pass   = spread <= tol * 2;        // ±tol → max fark 2*tol
+  const cls    = pass ? 'pass' : spread <= tol * 4 ? 'warn' : 'fail';
+  const icon   = pass ? '✅ GEÇTİ' : spread <= tol * 4 ? '⚠️ UYARI' : '❌ BAŞARISIZ';
+
+  const maxVal = Math.max(...vals, 1);
+  const bars = nurses.map(n => {
+    const v   = loadMap[n];
+    const d   = v - avg;
+    const pct = Math.round((v / maxVal) * 100);
+    const barCls = Math.abs(d) <= tol ? 'ok' : d > 0 ? 'over' : 'under';
+    const dSign  = d > 0 ? '+' : '';
+    const dCls   = Math.abs(d) <= tol ? 'zero' : d > 0 ? 'pos' : 'neg';
+    return `
+      <div class="bar-row">
+        <span class="bar-name" title="${n}">${n}</span>
+        <div class="bar-track">
+          <div class="bar-fill ${barCls}" style="width:${pct}%"></div>
+        </div>
+        <span class="bar-val">${v}${unit}</span>
+        <span class="bar-delta ${dCls}">${dSign}${d.toFixed(unit==='h'?0:1)}</span>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="card ${cls}">
+      <div class="card-title">${num}. ${title}</div>
+      <div class="verdict">${icon}</div>
+      <div style="font-size:0.8em;color:#94a3b8;margin-bottom:10px">
+        Ort: <b>${avg.toFixed(unit==='h'?0:1)}${unit}</b> &nbsp;|&nbsp;
+        Min: <b>${min}${unit}</b> &nbsp;|&nbsp;
+        Max: <b>${max}${unit}</b> &nbsp;|&nbsp;
+        Fark: <b style="color:${pass?'#4ade80':cls==='warn'?'#fbbf24':'#f87171'}">${spread}${unit}</b>
+        &nbsp;<span style="color:#475569">(tolerans ±${tol}${unit})</span>
+      </div>
+      <div class="bar-list">${bars}</div>
+    </div>`;
+}
+
+function buildTable({ nurses, year, month }, { sch, hourLoad, weekendLoad, offLoad }) {
+  const days     = daysInMonth(year, month);
+  const holidays = getHolidayDays(year, month);
+
+  let head = '<tr><th style="text-align:left;padding:3px 8px">Hemşire</th>';
+  for (let d = 1; d <= days; d++) {
+    const dow   = getDow(year, month, d);
+    const isWe  = dow===0||dow===6;
+    const isHol = holidays.has(d)&&!isWe;
+    const cls   = isWe ? 'we' : isHol ? 'hol' : '';
+    head += `<th class="${cls}">${d}<br><span style="font-weight:400;font-size:0.85em">${TR_DAYS_S[dow]}</span></th>`;
+  }
+  head += '<th>Saat</th><th>WE</th><th>Boş</th></tr>';
+
+  let body = '';
+  nurses.forEach(n => {
+    let row = `<td class="nurse-name">${n}</td>`;
+    for (let d = 1; d <= days; d++) {
+      const s = sch[n][d] || '';
+      const label = {day:'D', night:'N', off:'B', leave:'Sİ', daynight:'D/N'}[s] || '';
+      const cls   = {day:'D', night:'N', off:'B', leave:'Si'}[s] || '';
+      row += `<td class="${cls}">${label}</td>`;
+    }
+    row += `<td class="stat"><b>${hourLoad[n]}h</b></td>`;
+    row += `<td class="stat">${weekendLoad[n]}</td>`;
+    row += `<td class="stat">${offLoad[n]}</td>`;
+    body += `<tr>${row}</tr>`;
+  });
+
+  // Toplam satırı
+  let totRow = `<td class="nurse-name" style="color:#64748b">Toplam / Ort</td>`;
+  for (let d = 1; d <= days; d++) {
+    const dc = nurses.filter(n=>sch[n][d]==='day').length;
+    const nc = nurses.filter(n=>sch[n][d]==='night').length;
+    totRow += `<td class="stat" style="font-size:0.85em;color:#64748b">${dc?dc+'G':''} ${nc?nc+'N':''}</td>`;
+  }
+  const avgH  = (nurses.reduce((a,n)=>a+hourLoad[n],0)/nurses.length).toFixed(0);
+  const avgWe = (nurses.reduce((a,n)=>a+weekendLoad[n],0)/nurses.length).toFixed(1);
+  const avgOf = (nurses.reduce((a,n)=>a+offLoad[n],0)/nurses.length).toFixed(1);
+  totRow += `<td class="stat" style="color:#94a3b8">~${avgH}h</td><td class="stat">~${avgWe}</td><td class="stat">~${avgOf}</td>`;
+  body += `<tr style="border-top:2px solid #334155">${totRow}</tr>`;
+
+  return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+// Sayfa açılışında bugünün ayını seç
+(function() {
+  const now = new Date();
+  document.getElementById('selMonth').value = now.getMonth();
+  document.getElementById('selYear').value  = now.getFullYear();
+})();
+</script>
+</body>
+</html>

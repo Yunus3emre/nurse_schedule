@@ -107,6 +107,9 @@
     </div>
     <!-- Mobil: kart görünümü (JS tarafından doldurulur) -->
     <div class="mobile-view" id="mobileView"></div>
+
+    <!-- ─── TEST PANELİ (geliştirme modu) ─── -->
+    <div class="test-panel" id="testPanel" style="display:none"></div>
   </main>
 
   <!-- ─── MOBİL FLOATING BOTTOM BAR ─── -->
@@ -196,35 +199,69 @@
       <button class="modal-close" onclick="closeAutoModal()">&#x2715;</button>
     </div>
 
-    <p style="color:var(--text-secondary);font-size:13px;line-height:1.65;margin-bottom:20px;">
-      <strong id="autoMonthLabel" style="color:var(--text-primary);"></strong> ayı için hemşirelere otomatik
-      vardiya ataması yapılacak. Her gün için belirtilen minimum kişi sayısı kadar hemşire
-      atanacak; yük dengeli (az nöbet tutan önce) ve rastgele dağıtılacak.
+    <p style="color:var(--text-secondary);font-size:13px;line-height:1.65;margin-bottom:16px;">
+      <strong id="autoMonthLabel" style="color:var(--text-primary);"></strong> ayı için otomatik vardiya ataması yapılacak.
+      Yük dengeli ve tercih öncelikli dağıtılır. Gece (N) sonrası zorunlu dinlenme kuralı otomatik uygulanır.
     </p>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+    <!-- Hafta içi -->
+    <p style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;letter-spacing:0.3px;">HAFTA İÇİ</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
       <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label" for="autoMinDay">Min. Gündüz Hemşire</label>
+        <label class="form-label" for="autoMinDay">Min. Gündüz</label>
         <input class="form-input" type="number" id="autoMinDay" value="2" min="1" max="20">
       </div>
       <div class="form-group" style="margin-bottom:0;">
-        <label class="form-label" for="autoMinNight">Min. Gece Hemşire</label>
+        <label class="form-label" for="autoMinNight">Min. Gece</label>
         <input class="form-input" type="number" id="autoMinNight" value="2" min="1" max="20">
+      </div>
+    </div>
+
+    <!-- Haftasonu -->
+    <p style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;letter-spacing:0.3px;">HAFTASONU / RESMİ TATİL</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="autoMinDayWe">Min. Gündüz</label>
+        <input class="form-input" type="number" id="autoMinDayWe" value="1" min="1" max="20">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="autoMinNightWe">Min. Gece</label>
+        <input class="form-input" type="number" id="autoMinNightWe" value="1" min="1" max="20">
       </div>
     </div>
 
     <div id="autoPreview" style="background:rgba(8,145,178,0.07);border:1px solid rgba(8,145,178,0.18);border-radius:10px;padding:12px;margin-bottom:16px;font-size:12px;color:var(--text-secondary);line-height:1.6;">
     </div>
 
-    <div style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.20);border-radius:10px;padding:10px 12px;margin-bottom:20px;">
-      <p style="color:#DC2626;font-size:12px;line-height:1.5;">
-        Bu işlem mevcut nöbet verilerini <strong>siler</strong>. İzin günleri korunur.
+    <div style="background:rgba(234,179,8,0.07);border:1px solid rgba(234,179,8,0.25);border-radius:10px;padding:10px 12px;margin-bottom:20px;">
+      <p style="color:#92400e;font-size:12px;line-height:1.5;">
+        Sadece <strong>atanmamış (boş)</strong> hücreler doldurulur. Mevcut vardiyalar, izin ve boş gün talepleri korunur.
       </p>
     </div>
 
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeAutoModal()" id="btn-auto-cancel">İptal</button>
       <button class="btn btn-primary" onclick="runAutoSchedule()" id="btn-run-auto">Oluştur</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── BAŞARISIZ ALTERNATİFLER MODAL ─── -->
+<div class="modal-overlay" id="failedAttemptsModal">
+  <div class="modal" style="max-width:680px;max-height:85vh;display:flex;flex-direction:column;">
+    <div class="modal-header" style="flex-shrink:0;">
+      <div>
+        <h2 class="modal-title">Başarısız Alternatifler</h2>
+        <p style="font-size:12px;color:var(--text-muted);margin:2px 0 0;">Algoritmanın denediği ve en az bir testi geçemeyen çizelgeler</p>
+      </div>
+      <button class="modal-close" onclick="closeFailedAttemptsModal()">✕</button>
+    </div>
+
+    <div id="failedAttemptsBody" style="overflow-y:auto;flex:1;padding:4px 0 8px;"></div>
+
+    <div class="modal-footer" style="flex-shrink:0;border-top:1px solid var(--modal-divider);padding-top:12px;">
+      <span style="font-size:12px;color:var(--text-muted);flex:1;" id="failedAttemptsFooterNote"></span>
+      <button class="btn btn-secondary" onclick="closeFailedAttemptsModal()">Kapat</button>
     </div>
   </div>
 </div>
