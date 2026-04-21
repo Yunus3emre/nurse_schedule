@@ -332,7 +332,140 @@ function updateRowTotal(name, nurseKey) {
   }
 }
 
+// ─── Auto Schedule ────────────────────────────────────────────────────────────
+
+function openAutoModal() {
+  document.getElementById('autoMonthLabel').textContent =
+    `${TR_MONTHS[currentMonth]} ${currentYear}`;
+  updateAutoPreview();
+
+  // Canlı önizleme: input değiştiğinde güncelle
+  ['autoMinDay', 'autoMinNight'].forEach(id => {
+    const el = document.getElementById(id);
+    el.oninput = updateAutoPreview;
+  });
+
+  document.getElementById('autoModal').classList.add('open');
+}
+
+function closeAutoModal() {
+  document.getElementById('autoModal').classList.remove('open');
+}
+
+function updateAutoPreview() {
+  const minDay   = Math.max(1, parseInt(document.getElementById('autoMinDay').value)   || 2);
+  const minNight = Math.max(1, parseInt(document.getElementById('autoMinNight').value) || 2);
+  const total    = storage.nurses.length;
+  const days     = daysInMonth(currentYear, currentMonth);
+  const perDay   = minDay + minNight;
+  const needed   = perDay * days;
+  const perNurse = total > 0 ? Math.round(needed / total) : 0;
+  const perNurseHours = perNurse * 12; // rough avg (8+16)/2
+
+  const preview = document.getElementById('autoPreview');
+  if (total < perDay) {
+    preview.style.background = 'rgba(239,68,68,0.08)';
+    preview.style.borderColor = 'rgba(239,68,68,0.3)';
+    preview.innerHTML = `❌ Yeterli hemşire yok! Her gün <strong>${perDay}</strong> hemşire gerekiyor, listede <strong>${total}</strong> hemşire var.`;
+    document.getElementById('btn-run-auto').disabled = true;
+    document.getElementById('btn-run-auto').style.opacity = '0.4';
+  } else {
+    preview.style.background = 'rgba(59,130,246,0.08)';
+    preview.style.borderColor = 'rgba(59,130,246,0.2)';
+    preview.style.color = 'var(--text-secondary)';
+    preview.innerHTML =
+      `📋 <strong style="color:var(--text-primary)">${days} günlük</strong> çizelge · ` +
+      `<strong style="color:var(--shift-day-text)">${minDay} gündüz</strong> + ` +
+      `<strong style="color:var(--shift-night-text)">${minNight} gece</strong> her gün<br>` +
+      `👩‍⚕️ Hemşire başı tahminen <strong style="color:var(--text-primary)">~${perNurse} vardiya</strong> · ` +
+      `<strong style="color:var(--accent-teal)">~${perNurseHours} saat/ay</strong>`;
+    document.getElementById('btn-run-auto').disabled = false;
+    document.getElementById('btn-run-auto').style.opacity = '';
+  }
+}
+
+/**
+ * Otomatik çizelge algoritması:
+ * Her gün için:
+ *   1) O gün İzni olan hemşireleri hariç tut
+ *   2) Kalan hemşireleri (toplam nöbet sayısı + küçük rastgele) göre sırala
+ *   3) İlk minDay hemşireye Gündüz, sonraki minNight hemşireye Gece ata
+ */
+function runAutoSchedule() {
+  const minDay   = Math.max(1, parseInt(document.getElementById('autoMinDay').value)   || 2);
+  const minNight = Math.max(1, parseInt(document.getElementById('autoMinNight').value) || 2);
+  const perDay   = minDay + minNight;
+
+  const days   = daysInMonth(currentYear, currentMonth);
+  const nurses = [...storage.nurses];
+
+  if (nurses.length < perDay) {
+    showToast('❌', 'Yeterli hemşire yok!');
+    return;
+  }
+
+  // Ay verilerini hazırla — sadece İzin günleri koru
+  const mk = monthKey(currentYear, currentMonth);
+  if (!storage.schedule[mk]) storage.schedule[mk] = {};
+  const sch = storage.schedule[mk];
+
+  nurses.forEach(n => {
+    if (!sch[n]) sch[n] = {};
+    for (let d = 1; d <= days; d++) {
+      if (sch[n][d] !== 'leave') sch[n][d] = 'empty';
+    }
+  });
+
+  // Toplam nöbet sayısı takibi (yük dengesi için)
+  const shiftCount = {};
+  nurses.forEach(n => { shiftCount[n] = 0; });
+
+  let skipped = 0;
+
+  for (let d = 1; d <= days; d++) {
+    // O gün müsait olan hemşireler (izinde değil)
+    const available = nurses.filter(n => sch[n][d] !== 'leave');
+
+    if (available.length < perDay) {
+      skipped++;
+      continue;
+    }
+
+    // Adil + rastgele sıralama:
+    // Az nöbet tutan hemşireler önce gelir, ama ~%40 oranında rastgelelik eklenir
+    const sorted = [...available].sort((a, b) => {
+      const scoreA = shiftCount[a] + Math.random() * 1.2;
+      const scoreB = shiftCount[b] + Math.random() * 1.2;
+      return scoreA - scoreB;
+    });
+
+    // Gündüz atamaları
+    for (let i = 0; i < minDay; i++) {
+      sch[sorted[i]][d] = 'day';
+      shiftCount[sorted[i]]++;
+    }
+
+    // Gece atamaları
+    for (let i = minDay; i < perDay; i++) {
+      sch[sorted[i]][d] = 'night';
+      shiftCount[sorted[i]]++;
+    }
+  }
+
+  saveStorage();
+  closeAutoModal();
+  renderAll();
+
+  const label = `${TR_MONTHS[currentMonth]} ${currentYear}`;
+  if (skipped > 0) {
+    showToast('⚠️', `Oluşturuldu — ${skipped} gün atlandı (yetersiz hemşire)`);
+  } else {
+    showToast('🎲', `${label} çizelgesi otomatik oluşturuldu!`);
+  }
+}
+
 // ─── Month navigation ─────────────────────────────────────────────────────────
+
 function prevMonth() {
   if (currentMonth === 0) { currentMonth = 11; currentYear--; }
   else currentMonth--;
@@ -705,6 +838,10 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('confirmModal').addEventListener('click', function(e) {
     if (e.target === this) closeConfirm();
   });
+  document.getElementById('autoModal').addEventListener('click', function(e) {
+    if (e.target === this) closeAutoModal();
+  });
+
 
   // Görünüm toggle butonunu başlat
   const toggleBtn = document.getElementById('viewToggleBtn');

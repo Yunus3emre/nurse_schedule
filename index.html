@@ -35,6 +35,9 @@
     </div>
 
     <div class="header-right">
+      <button class="btn btn-secondary" onclick="openAutoModal()" id="btn-auto-schedule">
+        🎲 <span class="btn-label">Otomatik</span>
+      </button>
       <button class="btn btn-secondary" onclick="openNurseModal()" id="btn-manage-nurses">
         👩‍⚕️ <span class="btn-label">Hemşireler</span>
       </button>
@@ -108,6 +111,47 @@
     <button class="mob-view-toggle" id="viewToggleBtn" onclick="toggleViewMode()" title="Tablo Görünümüne Geç">📊</button>
   </div>
 
+</div>
+
+<!-- ─── AUTO SCHEDULE MODAL ─── -->
+<div class="modal-overlay" id="autoModal">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header">
+      <h2 class="modal-title">🎲 Otomatik Çizelge Oluştur</h2>
+      <button class="modal-close" onclick="closeAutoModal()">&#x2715;</button>
+    </div>
+
+    <p style="color:var(--text-secondary);font-size:13px;line-height:1.65;margin-bottom:20px;">
+      <strong id="autoMonthLabel" style="color:var(--text-primary);"></strong> ayı için hemşirelere otomatik
+      vardiya ataması yapılacak. Her gün için belirtilen minimum kişi sayısı kadar hemşire
+      atanacak; yük dengeli (az nöbet tutan önce) ve rastgele dağıtılacak.
+    </p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="autoMinDay">☀️ Min. Gündüz Hemşire</label>
+        <input class="form-input" type="number" id="autoMinDay" value="2" min="1" max="20">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="autoMinNight">🌙 Min. Gece Hemşire</label>
+        <input class="form-input" type="number" id="autoMinNight" value="2" min="1" max="20">
+      </div>
+    </div>
+
+    <div id="autoPreview" style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:10px;padding:12px;margin-bottom:16px;font-size:12px;color:var(--text-secondary);line-height:1.6;">
+    </div>
+
+    <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:10px;padding:10px 12px;margin-bottom:20px;">
+      <p style="color:#f87171;font-size:12px;line-height:1.5;">
+        ⚠️ Bu işlem mevcut nöbet verilerini <strong>siler</strong>. İzin günleri korunur.
+      </p>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeAutoModal()" id="btn-auto-cancel">İptal</button>
+      <button class="btn btn-primary" onclick="runAutoSchedule()" id="btn-run-auto">🎲 Oluştur</button>
+    </div>
+  </div>
 </div>
 
 <!-- ─── NURSE MANAGER MODAL ─── -->
