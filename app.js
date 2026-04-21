@@ -1,7 +1,16 @@
 // ─── Constants ────────────────────────────────────────────────────────────────
-const SHIFT_STATES = ['empty', 'day', 'night', 'daynight', 'leave'];
-const SHIFT_LABELS = { empty: '', day: 'D', night: 'N', daynight: 'D/N', leave: 'İ' };
-const SHIFT_HOURS  = { empty: 0,  day: 8,  night: 16,  daynight: 24,  leave: 0 };
+const SHIFT_STATES = ['empty', 'day', 'night', 'daynight', 'off', 'leave'];
+const SHIFT_LABELS = { empty: '', day: 'D', night: 'N', daynight: 'D/N', off: 'B', leave: 'Sİ' };
+const SHIFT_HOURS  = { empty: 0,  day: 8,  night: 16,  daynight: 24,  off: 0,  leave: 0 };
+
+const SHIFT_MENU = [
+  { state: 'day',      label: 'D',   desc: 'Gündüz'        },
+  { state: 'night',    label: 'N',   desc: 'Gece'          },
+  { state: 'daynight', label: 'D/N', desc: 'Gündüz / Gece' },
+  { state: 'off',      label: 'B',   desc: 'Boş (İstekli)' },
+  { state: 'leave',    label: 'Sİ',  desc: 'Senelik İzin'  },
+  { state: 'empty',    label: '—',   desc: 'Temizle'       },
+];
 
 const TR_MONTHS = [
   'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
@@ -371,28 +380,123 @@ function renderStats() {
 }
 
 // ─── Cycle shift on cell click ────────────────────────────────────────────────
+// ─── Shift Dropdown ───────────────────────────────────────────────────────────
+
+let _activeDropdown = null;
+
 function cycleShift(nurseEncoded, day, td) {
+  // Aynı hücreye tekrar tıklanınca kapat
+  if (_activeDropdown && _activeDropdown.cell === td) {
+    closeShiftDropdown();
+    return;
+  }
+  closeShiftDropdown();
+  openShiftDropdown(nurseEncoded, day, td);
+}
+
+function openShiftDropdown(nurseEncoded, day, td) {
   const name     = decodeName(nurseEncoded);
   const monthSch = getMonthSchedule(currentYear, currentMonth);
+  const current  = monthSch[name]?.[day] || 'empty';
 
+  const menu = document.createElement('div');
+  menu.className = 'shift-dropdown';
+  menu.setAttribute('role', 'menu');
+
+  SHIFT_MENU.forEach(({ state, label, desc }) => {
+    const item = document.createElement('button');
+    const isClear = state === 'empty';
+    item.className = 'shift-dropdown-item' +
+      (state === current ? ' active' : '') +
+      (isClear ? ' clear-item' : '');
+    item.setAttribute('role', 'menuitem');
+    item.innerHTML =
+      `<span class="cell-inner ${state}">${isClear ? '' : label}</span>` +
+      `<span class="shift-dropdown-desc">${desc}</span>`;
+    item.onclick = (e) => {
+      e.stopPropagation();
+      applyShift(name, nurseEncoded, day, td, state);
+      closeShiftDropdown();
+    };
+    menu.appendChild(item);
+  });
+
+  // Portal: body'e ekle, tablo layout'unu bozmaz
+  document.body.appendChild(menu);
+
+  // Hücrenin viewport konumuna göre fixed pozisyon hesapla
+  positionDropdown(menu, td);
+
+  // Tablo scroll'u veya resize'da pozisyonu güncelle
+  const tableWrapper = document.querySelector('.table-wrapper') || document.querySelector('.main-content');
+  const onScroll = () => positionDropdown(menu, td);
+  tableWrapper?.addEventListener('scroll', onScroll);
+  window.addEventListener('resize', onScroll);
+
+  _activeDropdown = { cell: td, menu, onScroll, tableWrapper };
+}
+
+function positionDropdown(menu, anchor) {
+  const MENU_W  = 185;
+  const GAP     = 6;
+  const rect    = anchor.getBoundingClientRect();
+  const vw      = window.innerWidth;
+  const vh      = window.innerHeight;
+
+  // Önce boyutu ölç
+  menu.style.visibility = 'hidden';
+  menu.style.top  = '-9999px';
+  menu.style.left = '-9999px';
+  const mh = menu.offsetHeight || 210;
+
+  // Yatay: hücrenin ortası, sağa taşarsa sola yasla
+  let left = rect.left + rect.width / 2 - MENU_W / 2;
+  if (left + MENU_W > vw - 8) left = vw - MENU_W - 8;
+  if (left < 8) left = 8;
+
+  // Dikey: önce aşağı dene, sığmazsa yukarı
+  let top  = rect.bottom + GAP;
+  if (top + mh > vh - 8) top = rect.top - mh - GAP;
+
+  menu.style.left       = left + 'px';
+  menu.style.top        = top  + 'px';
+  menu.style.width      = MENU_W + 'px';
+  menu.style.visibility = '';
+}
+
+function applyShift(name, nurseEncoded, day, td, state) {
+  const monthSch = getMonthSchedule(currentYear, currentMonth);
   if (!monthSch[name]) monthSch[name] = {};
-  const current = monthSch[name][day] || 'empty';
-  const idx     = SHIFT_STATES.indexOf(current);
-  const next    = SHIFT_STATES[(idx + 1) % SHIFT_STATES.length];
-  monthSch[name][day] = next;
-
-  // Persist immediately
+  monthSch[name][day] = state;
   saveStorage();
 
-  // Update cell DOM (works for both desktop td and mobile div)
   const inner = td.querySelector('.cell-inner');
-  inner.className   = `cell-inner ${next}`;
-  inner.textContent = SHIFT_LABELS[next];
+  inner.className   = `cell-inner ${state}`;
+  inner.textContent = SHIFT_LABELS[state];
 
-  // Update row/card total
   updateRowTotal(name, nurseEncoded);
   renderStats();
 }
+
+function closeShiftDropdown() {
+  if (!_activeDropdown) return;
+  const { menu, onScroll, tableWrapper } = _activeDropdown;
+  tableWrapper?.removeEventListener('scroll', onScroll);
+  window.removeEventListener('resize', onScroll);
+  menu.remove();
+  _activeDropdown = null;
+}
+
+// Dışarı tıklayınca kapat
+document.addEventListener('click', (e) => {
+  if (_activeDropdown && !_activeDropdown.cell.contains(e.target) && !_activeDropdown.menu.contains(e.target)) {
+    closeShiftDropdown();
+  }
+});
+// Escape tuşu ile kapat
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeShiftDropdown();
+});
 
 function updateRowTotal(name, nurseKey) {
   const days     = daysInMonth(currentYear, currentMonth);
@@ -453,7 +557,7 @@ function updateAutoPreview() {
       `<strong style="color:var(--shift-day-text)">${minDay} gündüz</strong> + ` +
       `<strong style="color:var(--shift-night-text)">${minNight} gece</strong> her gün<br>` +
       `👩‍⚕️ Hemşire başı tahminen <strong style="color:var(--text-primary)">~${perNurse} vardiya</strong> · ` +
-      `<strong style="color:var(--accent-teal)">~${perNurseHours} saat/ay</strong>`;
+      `<strong style="color:var(--brand-cta)">~${perNurseHours} saat/ay</strong>`;
     document.getElementById('btn-run-auto').disabled = false;
     document.getElementById('btn-run-auto').style.opacity = '';
   }
@@ -770,9 +874,10 @@ ${legendHTML}
 </body>
 </html>`;
 
-  const win = window.open('', '_blank', 'width=1100,height=750');
-  win.document.write(html);
-  win.document.close();
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const win  = window.open(url, '_blank', 'width=1100,height=750');
+  win.addEventListener('unload', () => URL.revokeObjectURL(url), { once: true });
 }
 
 // ─── Download as TXT ──────────────────────────────────────────────────────────
@@ -1043,9 +1148,41 @@ function closeMenuModal() {
   document.getElementById('menuModal').classList.remove('open');
 }
 
+// ─── Theme Toggle ─────────────────────────────────────────────────────────────
+
+const THEME_KEY = 'nobet_theme';
+
+function applyTheme(dark) {
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  const icon = document.getElementById('themeToggleIcon');
+  const label = document.getElementById('themeToggleLabel');
+  if (!icon || !label) return;
+  if (dark) {
+    icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+    label.textContent = 'Aydınlık Temaya Geç';
+  } else {
+    icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+    label.textContent = 'Karanlık Temaya Geç';
+  }
+}
+
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const next = !isDark;
+  localStorage.setItem(THEME_KEY, next ? 'dark' : 'light');
+  applyTheme(next);
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  applyTheme(saved === 'dark');
+}
+
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
+
   // Enter tuşu ile hemşire ekleme
   document.getElementById('newNurseName').addEventListener('keydown', e => {
     if (e.key === 'Enter') addNurse();
