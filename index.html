@@ -96,6 +96,9 @@
     </div>
   </div>
 
+  <!-- ─── RULES BAR ─── -->
+  <div class="rules-bar" id="rulesBar"></div>
+
   <!-- ─── MAIN TABLE ─── -->
   <main class="main-content">
     <!-- Masaüstü: tablo görünümü -->
@@ -209,11 +212,11 @@
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
       <div class="form-group" style="margin-bottom:0;">
         <label class="form-label" for="autoMinDay">Min. Gündüz</label>
-        <input class="form-input" type="number" id="autoMinDay" value="2" min="1" max="20">
+        <input class="form-input" type="number" id="autoMinDay" value="4" min="1" max="20">
       </div>
       <div class="form-group" style="margin-bottom:0;">
         <label class="form-label" for="autoMinNight">Min. Gece</label>
-        <input class="form-input" type="number" id="autoMinNight" value="2" min="1" max="20">
+        <input class="form-input" type="number" id="autoMinNight" value="3" min="1" max="20">
       </div>
     </div>
 
@@ -222,11 +225,20 @@
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
       <div class="form-group" style="margin-bottom:0;">
         <label class="form-label" for="autoMinDayWe">Min. Gündüz</label>
-        <input class="form-input" type="number" id="autoMinDayWe" value="1" min="1" max="20">
+        <input class="form-input" type="number" id="autoMinDayWe" value="3" min="1" max="20">
       </div>
       <div class="form-group" style="margin-bottom:0;">
         <label class="form-label" for="autoMinNightWe">Min. Gece</label>
-        <input class="form-input" type="number" id="autoMinNightWe" value="1" min="1" max="20">
+        <input class="form-input" type="number" id="autoMinNightWe" value="3" min="1" max="20">
+      </div>
+    </div>
+
+    <!-- Hemşire başı limitler -->
+    <p style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;letter-spacing:0.3px;">HEMŞİRE BAŞI AYLIK LİMİTLER</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="autoMaxLeave">Max Senelik İzin (gün)</label>
+        <input class="form-input" type="number" id="autoMaxLeave" value="5" min="1" max="31">
       </div>
     </div>
 
@@ -246,22 +258,23 @@
   </div>
 </div>
 
-<!-- ─── BAŞARISIZ ALTERNATİFLER MODAL ─── -->
-<div class="modal-overlay" id="failedAttemptsModal">
-  <div class="modal" style="max-width:680px;max-height:85vh;display:flex;flex-direction:column;">
+<!-- ─── SENARYO SEÇİCİ MODAL ─── -->
+<div class="modal-overlay" id="scenarioPickerModal">
+  <div class="modal" style="max-width:700px;max-height:88vh;display:flex;flex-direction:column;">
     <div class="modal-header" style="flex-shrink:0;">
       <div>
-        <h2 class="modal-title">Başarısız Alternatifler</h2>
-        <p style="font-size:12px;color:var(--text-muted);margin:2px 0 0;">Algoritmanın denediği ve en az bir testi geçemeyen çizelgeler</p>
+        <h2 class="modal-title">Senaryo Seçimi</h2>
+        <p style="font-size:12px;color:var(--text-muted);margin:2px 0 0;" id="scenarioPickerSubtitle"></p>
       </div>
-      <button class="modal-close" onclick="closeFailedAttemptsModal()">✕</button>
+      <button class="modal-close" onclick="closeScenarioPickerModal()">✕</button>
     </div>
 
-    <div id="failedAttemptsBody" style="overflow-y:auto;flex:1;padding:4px 0 8px;"></div>
+    <div id="scenarioPickerBody" style="overflow-y:auto;flex:1;padding:8px 0;"></div>
 
     <div class="modal-footer" style="flex-shrink:0;border-top:1px solid var(--modal-divider);padding-top:12px;">
-      <span style="font-size:12px;color:var(--text-muted);flex:1;" id="failedAttemptsFooterNote"></span>
-      <button class="btn btn-secondary" onclick="closeFailedAttemptsModal()">Kapat</button>
+      <span style="font-size:12px;color:var(--text-muted);flex:1;" id="scenarioPickerNote"></span>
+      <button class="btn btn-secondary" onclick="closeScenarioPickerModal()">İptal</button>
+      <button class="btn btn-primary" id="btn-apply-scenario" onclick="applySelectedScenario()" disabled style="opacity:0.4;">Uygula</button>
     </div>
   </div>
 </div>

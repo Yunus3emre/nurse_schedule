@@ -85,10 +85,12 @@ function loadStorage() {
       if (!parsed.nurses) parsed.nurses = [...DEFAULT_NURSES];
       if (!parsed.schedule) parsed.schedule = {};
       if (!parsed.preferences) parsed.preferences = {};
+      if (!parsed.settings) parsed.settings = { minDay: 4, minNight: 3, minDayWe: 3, minNightWe: 3, maxLeaveDays: 5 };
+      if (parsed.settings.maxLeaveDays == null) parsed.settings.maxLeaveDays = 5;
       return parsed;
     }
   } catch (e) { /* ignore */ }
-  return { nurses: [...DEFAULT_NURSES], schedule: {}, preferences: {} };
+  return { nurses: [...DEFAULT_NURSES], schedule: {}, preferences: {}, settings: { minDay: 4, minNight: 3, minDayWe: 3, minNightWe: 3, maxLeaveDays: 5 } };
 }
 
 function saveStorage() {
@@ -148,7 +150,7 @@ const PREF_LEVELS = ['day-only', 'day-prefer', 'any', 'night-prefer', 'night-onl
 /** Hemşirenin vardiya tercihini döndürür; eski değerleri yeni sisteme normalize eder */
 function getPreference(name) {
   const raw = (storage.preferences && storage.preferences[name]) || 'any';
-  if (raw === 'day')   return 'day-prefer';
+  if (raw === 'day') return 'day-prefer';
   if (raw === 'night') return 'night-prefer';
   return raw;
 }
@@ -174,14 +176,14 @@ function setPreference(nurseEncoded, pref) {
  */
 function prefScore(name, shiftType) {
   const p = getPreference(name);
-  if (p === 'day-only')    return shiftType === 'day' ? -6 : 10;
-  if (p === 'day-prefer')  return shiftType === 'day' ? -4 :  3;
-  if (p === 'any')         return 0;
-  if (p === 'night-prefer') return shiftType === 'night' ? -4 :  3;
-  if (p === 'night-only')   return shiftType === 'night' ? -6 : 10;
+  if (p === 'day-only') return shiftType === 'day' ? -6 : 10;
+  if (p === 'day-prefer') return shiftType === 'day' ? -4 : 3;
+  if (p === 'any') return 0;
+  if (p === 'night-prefer') return shiftType === 'night' ? -4 : 3;
+  if (p === 'night-only') return shiftType === 'night' ? -6 : 10;
   // eski değerleri geriye dönük destekle
-  if (p === 'day')   return shiftType === 'day'   ? -4 :  5;
-  if (p === 'night') return shiftType === 'night' ? -4 :  5;
+  if (p === 'day') return shiftType === 'day' ? -4 : 5;
+  if (p === 'night') return shiftType === 'night' ? -4 : 5;
   return 0;
 }
 
@@ -207,10 +209,55 @@ function toggleViewMode() {
 }
 
 // ─── Render ───────────────────────────────────────────────────────────────────
+function renderRulesBar() {
+  const el = document.getElementById('rulesBar');
+  if (!el) return;
+  const s = storage.settings;
+  const n = storage.nurses.length;
+  const minDay = s.minDay || 4, minNight = s.minNight || 3;
+  const minDayWe = s.minDayWe || 3, minNightWe = s.minNightWe || 3;
+  const maxLeaveDays = s.maxLeaveDays || 5;
+
+  const maxOffWd = n - (minDay + minNight);
+  const maxOffWe = n - (minDayWe + minNightWe);
+
+  const days = daysInMonth(currentYear, currentMonth);
+  let weekendDays = 0;
+  for (let d = 1; d <= days; d++) { const dow = getDayOfWeek(currentYear, currentMonth, d); if (dow === 0 || dow === 6) weekendDays++; }
+  const maxWeekendPerNurse = n > 0 ? Math.floor(maxOffWe * weekendDays / n) : 0;
+
+  const ok = maxOffWd >= 0 && maxOffWe >= 0;
+
+  el.innerHTML = ok ? `
+    <span class="rules-label">Çalışma Kuralları</span>
+    <div class="rules-items">
+      <div class="rules-item">
+        <span class="rules-chip rules-chip-staff">Hafta içi kadro</span>
+        min <strong>${minDay}G + ${minNight}N</strong> = ${minDay+minNight} çalışan
+      </div>
+      <div class="rules-item">
+        <span class="rules-chip rules-chip-staff">Haftasonu kadro</span>
+        min <strong>${minDayWe}G + ${minNightWe}N</strong> = ${minDayWe+minNightWe} çalışan
+      </div>
+      <div class="rules-sep"></div>
+      <div class="rules-item">
+        <span class="rules-chip rules-chip-limit">Max eş zamanlı izinli</span>
+        Hafta içi <strong class="rules-val-warn">${maxOffWd}</strong> · Haftasonu <strong class="rules-val-warn">${maxOffWe}</strong> kişi
+      </div>
+      <div class="rules-item">
+        <span class="rules-chip rules-chip-limit">Hemşire başı aylık</span>
+        Max <strong class="rules-val-purple">${maxWeekendPerNurse}</strong> haftasonu B · Max <strong class="rules-val-leave">${maxLeaveDays}</strong> gün Sİ
+      </div>
+    </div>
+    <span class="rules-nurse-count">${n} hemşire</span>
+  ` : `<span class="rules-label rules-label-error">Hata: Hemşire sayısı (${n}) minimum kadronun altında!</span>`;
+}
+
 function renderAll() {
   renderHeader();
   renderTable();
   renderStats();
+  renderRulesBar();
   renderTestPanel();
 }
 
@@ -449,21 +496,21 @@ function renderTestPanel() {
   const nurses = storage.nurses;
   if (!nurses || nurses.length === 0) { panel.innerHTML = ''; return; }
 
-  const days     = daysInMonth(currentYear, currentMonth);
+  const days = daysInMonth(currentYear, currentMonth);
   const holidays = getHolidayDays(currentYear, currentMonth);
   const monthSch = getMonthSchedule(currentYear, currentMonth);
 
   // ── Hesaplamalar ──
-  const hourLoad    = {};
+  const hourLoad = {};
   const weekendLoad = {};
-  const offLoad     = {};
+  const offLoad = {};
 
   nurses.forEach(n => {
     hourLoad[n] = 0; weekendLoad[n] = 0; offLoad[n] = 0;
     for (let d = 1; d <= days; d++) {
-      const s   = monthSch[n]?.[d] || 'empty';
+      const s = monthSch[n]?.[d] || 'empty';
       const dow = getDayOfWeek(currentYear, currentMonth, d);
-      const isWe  = dow === 0 || dow === 6;
+      const isWe = dow === 0 || dow === 6;
       const isHol = holidays.has(d) && !isWe;
       const active = isWe || isHol;
 
@@ -476,54 +523,54 @@ function renderTestPanel() {
 
   // ── Kural 1: Mesai eşitliği ──
   const TARGET = 160;
-  const mesaiNurses  = nurses.filter(n => hourLoad[n] > TARGET);
+  const mesaiNurses = nurses.filter(n => hourLoad[n] > TARGET);
   const mesaiFraction = mesaiNurses.length / nurses.length;
   const mesaiTriggered = mesaiFraction >= 0.3;
 
   let card1Class, card1Verdict, card1Detail;
   if (!mesaiTriggered) {
-    card1Class   = 'tc-pass';
+    card1Class = 'tc-pass';
     card1Verdict = '✅ Mesai yok';
-    card1Detail  = `Takımın ${Math.round(mesaiFraction*100)}%'i mesai yapıyor (&lt;30% — kural aktif değil).`;
+    card1Detail = `Takımın ${Math.round(mesaiFraction * 100)}%'i mesai yapıyor (&lt;30% — kural aktif değil).`;
   } else {
     const noMesai = nurses.filter(n => hourLoad[n] <= TARGET);
     const mesaiVals = mesaiNurses.map(n => hourLoad[n]);
     const spread = Math.max(...mesaiVals) - Math.min(...mesaiVals);
     const allHaveMesai = noMesai.length === 0;
     const spreadOk = spread <= 8;
-    card1Class   = (allHaveMesai && spreadOk) ? 'tc-pass' : 'tc-fail';
+    card1Class = (allHaveMesai && spreadOk) ? 'tc-pass' : 'tc-fail';
     card1Verdict = (allHaveMesai && spreadOk) ? '✅ GEÇTİ' : '❌ BAŞARISIZ';
-    card1Detail  = `Takımın ${Math.round(mesaiFraction*100)}%'i mesai yapıyor (≥30% — kural aktif).<br>` +
+    card1Detail = `Takımın ${Math.round(mesaiFraction * 100)}%'i mesai yapıyor (≥30% — kural aktif).<br>` +
       (allHaveMesai ? '' : `<b style="color:#f87171">Mesaisiz: ${noMesai.join(', ')}</b><br>`) +
       `Mesai farkı: <b>${spread}s</b> (tolerans ≤8s)`;
   }
 
   // ── Kural 2: Haftasonu eşitliği ──
-  const weVals   = nurses.map(n => weekendLoad[n]);
-  const weMax    = Math.max(...weVals), weMin = Math.min(...weVals);
+  const weVals = nurses.map(n => weekendLoad[n]);
+  const weMax = Math.max(...weVals), weMin = Math.min(...weVals);
   const weSpread = weMax - weMin;
-  const card2Class   = weSpread <= 1 ? 'tc-pass' : weSpread <= 2 ? 'tc-warn' : 'tc-fail';
+  const card2Class = weSpread <= 1 ? 'tc-pass' : weSpread <= 2 ? 'tc-warn' : 'tc-fail';
   const card2Verdict = weSpread <= 1 ? '✅ GEÇTİ' : weSpread <= 2 ? '⚠️ UYARI' : '❌ BAŞARISIZ';
-  const weAvg    = (weVals.reduce((a,b)=>a+b,0)/nurses.length).toFixed(1);
-  const card2Detail  = `Min: ${weMin} · Max: ${weMax} · Ort: ${weAvg} · Fark: <b>${weSpread}</b> (tolerans ≤1)`;
+  const weAvg = (weVals.reduce((a, b) => a + b, 0) / nurses.length).toFixed(1);
+  const card2Detail = `Min: ${weMin} · Max: ${weMax} · Ort: ${weAvg} · Fark: <b>${weSpread}</b> (tolerans ≤1)`;
 
   // ── Kural 3: Boş gün eşitliği ──
-  const offVals   = nurses.map(n => offLoad[n]);
-  const offMax    = Math.max(...offVals), offMin = Math.min(...offVals);
+  const offVals = nurses.map(n => offLoad[n]);
+  const offMax = Math.max(...offVals), offMin = Math.min(...offVals);
   const offSpread = offMax - offMin;
-  const card3Class   = offSpread <= 1 ? 'tc-pass' : offSpread <= 2 ? 'tc-warn' : 'tc-fail';
+  const card3Class = offSpread <= 1 ? 'tc-pass' : offSpread <= 2 ? 'tc-warn' : 'tc-fail';
   const card3Verdict = offSpread <= 1 ? '✅ GEÇTİ' : offSpread <= 2 ? '⚠️ UYARI' : '❌ BAŞARISIZ';
-  const offAvg    = (offVals.reduce((a,b)=>a+b,0)/nurses.length).toFixed(1);
-  const card3Detail  = `Min: ${offMin} · Max: ${offMax} · Ort: ${offAvg} · Fark: <b>${offSpread}</b> (tolerans ≤1)`;
+  const offAvg = (offVals.reduce((a, b) => a + b, 0) / nurses.length).toFixed(1);
+  const card3Detail = `Min: ${offMin} · Max: ${offMax} · Ort: ${offAvg} · Fark: <b>${offSpread}</b> (tolerans ≤1)`;
 
   // ── Bar yardımcısı ──
   function bars(loadMap, unit, tol) {
-    const vals  = nurses.map(n => loadMap[n]);
-    const avg   = vals.reduce((a,b)=>a+b,0)/vals.length;
-    const maxV  = Math.max(...vals, 1);
+    const vals = nurses.map(n => loadMap[n]);
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const maxV = Math.max(...vals, 1);
     return nurses.map(n => {
-      const v   = loadMap[n];
-      const d   = v - avg;
+      const v = loadMap[n];
+      const d = v - avg;
       const pct = Math.round((v / maxV) * 100);
       const bCls = Math.abs(d) <= tol ? 'tb-ok' : d > 0 ? 'tb-over' : 'tb-under';
       const dCls = Math.abs(d) <= tol ? 'td-ok' : d > 0 ? 'td-pos' : 'td-neg';
@@ -735,9 +782,18 @@ function updateRowTotal(name, nurseKey) {
 function openAutoModal() {
   document.getElementById('autoMonthLabel').textContent =
     `${TR_MONTHS[currentMonth]} ${currentYear}`;
+
+  // Load persisted settings into inputs
+  const s = storage.settings;
+  document.getElementById('autoMinDay').value = s.minDay;
+  document.getElementById('autoMinNight').value = s.minNight;
+  document.getElementById('autoMinDayWe').value = s.minDayWe;
+  document.getElementById('autoMinNightWe').value = s.minNightWe;
+  document.getElementById('autoMaxLeave').value = s.maxLeaveDays;
+
   updateAutoPreview();
 
-  ['autoMinDay', 'autoMinNight', 'autoMinDayWe', 'autoMinNightWe'].forEach(id => {
+  ['autoMinDay', 'autoMinNight', 'autoMinDayWe', 'autoMinNightWe', 'autoMaxLeave'].forEach(id => {
     document.getElementById(id).oninput = updateAutoPreview;
   });
 
@@ -748,11 +804,18 @@ function closeAutoModal() {
   document.getElementById('autoModal').classList.remove('open');
 }
 
+function _readAutoInputs() {
+  return {
+    minDay:      Math.max(1, parseInt(document.getElementById('autoMinDay').value) || 4),
+    minNight:    Math.max(1, parseInt(document.getElementById('autoMinNight').value) || 3),
+    minDayWe:    Math.max(1, parseInt(document.getElementById('autoMinDayWe').value) || 3),
+    minNightWe:  Math.max(1, parseInt(document.getElementById('autoMinNightWe').value) || 3),
+    maxLeaveDays: Math.max(1, parseInt(document.getElementById('autoMaxLeave').value) || 5),
+  };
+}
+
 function updateAutoPreview() {
-  const minDay = Math.max(1, parseInt(document.getElementById('autoMinDay').value) || 2);
-  const minNight = Math.max(1, parseInt(document.getElementById('autoMinNight').value) || 2);
-  const minDayWe = Math.max(1, parseInt(document.getElementById('autoMinDayWe').value) || 1);
-  const minNightWe = Math.max(1, parseInt(document.getElementById('autoMinNightWe').value) || 1);
+  const { minDay, minNight, minDayWe, minNightWe, maxLeaveDays } = _readAutoInputs();
   const total = storage.nurses.length;
   const days = daysInMonth(currentYear, currentMonth);
   const holidays = getHolidayDays(currentYear, currentMonth);
@@ -781,15 +844,20 @@ function updateAutoPreview() {
   const perNurse = total > 0 ? Math.round(needed / total) : 0;
   const perNurseHours = perNurse * 12;
 
+  const maxOffWeekday = total - (minDay + minNight);
+  const maxOffWeekend = total - (minDayWe + minNightWe);
+  let weekendDays = 0;
+  for (let d = 1; d <= days; d++) { const dow = getDayOfWeek(currentYear, currentMonth, d); if (dow === 0 || dow === 6) weekendDays++; }
+  const maxWeekendPerNurse = Math.floor(maxOffWeekend * weekendDays / total);
+
   preview.style.background = 'rgba(59,130,246,0.08)';
   preview.style.borderColor = 'rgba(59,130,246,0.2)';
   preview.style.color = 'var(--text-secondary)';
   preview.innerHTML =
-    `📋 <strong style="color:var(--text-primary)">${days} günlük</strong> çizelge<br>` +
-    `📅 Hafta içi: <strong style="color:var(--shift-day-text)">${minDay}G</strong> + <strong style="color:var(--shift-night-text)">${minNight}N</strong> · ` +
-    `Haftasonu/Tatil: <strong style="color:var(--shift-day-text)">${minDayWe}G</strong> + <strong style="color:var(--shift-night-text)">${minNightWe}N</strong><br>` +
-    `👩‍⚕️ Hemşire başı tahminen <strong style="color:var(--text-primary)">~${perNurse} vardiya</strong> · ` +
-    `<strong style="color:var(--brand-cta)">~${perNurseHours} saat/ay</strong>`;
+    `📋 <strong style="color:var(--text-primary)">${days} günlük</strong> çizelge · ` +
+    `👩‍⚕️ Hemşire başı ~<strong style="color:var(--text-primary)">${perNurse} vardiya</strong> · <strong style="color:var(--brand-cta)">~${perNurseHours}s/ay</strong><br>` +
+    `🚫 Aynı anda max izinli: Hafta içi <strong style="color:#DC2626">${maxOffWeekday}</strong> · Haftasonu <strong style="color:#DC2626">${maxOffWeekend}</strong><br>` +
+    `📆 Hemşire başı: Max <strong style="color:#7C3AED">${maxWeekendPerNurse}</strong> haftasonu B · Max <strong style="color:var(--shift-leave-text)">${maxLeaveDays}</strong> gün Sİ`;
   document.getElementById('btn-run-auto').disabled = false;
   document.getElementById('btn-run-auto').style.opacity = '';
 }
@@ -801,7 +869,7 @@ function updateAutoPreview() {
  * Storage'a yazmaz; yeni sch nesnesi döndürür.
  */
 function _buildScheduleFromSnapshot(snapshot, nurses, year, month, minDay, minNight, minDayWe, minNightWe) {
-  const days     = daysInMonth(year, month);
+  const days = daysInMonth(year, month);
   const holidays = getHolidayDays(year, month);
 
   // Snapshot'ın derin kopyasını al — her denemede aynı başlangıçtan yola çık
@@ -856,34 +924,47 @@ function _buildScheduleFromSnapshot(snapshot, nurses, year, month, minDay, minNi
     [...pool].sort((a, b) => {
       const restBonusA = restDaysAfterDayStreak(a, day) >= 3 ? -4 : 0;
       const restBonusB = restDaysAfterDayStreak(b, day) >= 3 ? -4 : 0;
-      const weBonusA = isWeekendDay ? weekendLoad[a] * 2 : 0;
-      const weBonusB = isWeekendDay ? weekendLoad[b] * 2 : 0;
-      const sa = prefScore(a, shiftType) + (hourLoad[a] / 8) * 2 + restBonusA + weBonusA + Math.random() * 1.5;
-      const sb = prefScore(b, shiftType) + (hourLoad[b] / 8) * 2 + restBonusB + weBonusB + Math.random() * 1.5;
+      
+      // EKSPONANSİYEL CEZALAR (Eşitliği sağlamak için)
+      // Saat arttıkça ceza katlanarak artar. Tercihleri ezebilir.
+      const hourPenaltyA = Math.pow(hourLoad[a] / 8, 2) * 1.5;
+      const hourPenaltyB = Math.pow(hourLoad[b] / 8, 2) * 1.5;
+      
+      // Haftasonu cezası da eksponansiyel
+      const weBonusA = isWeekendDay ? Math.pow(weekendLoad[a], 2) * 4 : 0;
+      const weBonusB = isWeekendDay ? Math.pow(weekendLoad[b], 2) * 4 : 0;
+
+      const sa = prefScore(a, shiftType) + hourPenaltyA + restBonusA + weBonusA + Math.random() * 0.8;
+      const sb = prefScore(b, shiftType) + hourPenaltyB + restBonusB + weBonusB + Math.random() * 0.8;
       return sa - sb;
     });
 
   let skipped = 0;
 
   for (let d = 1; d <= days; d++) {
-    const dow      = getDayOfWeek(year, month, d);
+    const dow = getDayOfWeek(year, month, d);
     const isWeekend = dow === 0 || dow === 6;
     const isHoliday = holidays.has(d) && !isWeekend;
-    const useWe    = isWeekend || isHoliday;
-    const needDay   = useWe ? minDayWe  : minDay;
+    const useWe = isWeekend || isHoliday;
+    const needDay = useWe ? minDayWe : minDay;
     const needNight = useWe ? minNightWe : minNight;
 
-    const dayPool     = sortForShift(nurses.filter(n => isAvailable(n, d, 'day')), 'day', useWe, d);
-    const dayAssigned = dayPool.slice(0, needDay);
-    if (dayAssigned.length < needDay) { skipped++; continue; }
-
-    const daySet      = new Set(dayAssigned);
-    const nightPool   = sortForShift(nurses.filter(n => isAvailable(n, d, 'night') && !daySet.has(n)), 'night', useWe, d);
+    // ÖNCE GECE NÖBETLERİNİ DAĞIT
+    // Sebebi: Gece nöbeti 16 saat olduğu için saati az olanlara öncelikli verilerek eşitlik hızlıca sağlanır.
+    const nightPool = sortForShift(nurses.filter(n => isAvailable(n, d, 'night')), 'night', useWe, d);
     const nightAssigned = nightPool.slice(0, needNight);
     if (nightAssigned.length < needNight) { skipped++; continue; }
 
-    dayAssigned.forEach(n => { sch[n][d] = 'day';   hourLoad[n] += 8;  if (useWe) weekendLoad[n]++; });
+    const nightSet = new Set(nightAssigned);
+    
+    // SONRA GÜNDÜZ NÖBETLERİNİ DAĞIT
+    const dayPool = sortForShift(nurses.filter(n => isAvailable(n, d, 'day') && !nightSet.has(n)), 'day', useWe, d);
+    const dayAssigned = dayPool.slice(0, needDay);
+    if (dayAssigned.length < needDay) { skipped++; continue; }
+
+    // Atamaları kaydet ve yükleri güncelle
     nightAssigned.forEach(n => { sch[n][d] = 'night'; hourLoad[n] += 16; if (useWe) weekendLoad[n]++; });
+    dayAssigned.forEach(n => { sch[n][d] = 'day'; hourLoad[n] += 8; if (useWe) weekendLoad[n]++; });
   }
 
   return { sch, hourLoad, weekendLoad, skipped };
@@ -895,60 +976,60 @@ function _buildScheduleFromSnapshot(snapshot, nurses, year, month, minDay, minNi
  * passCount: 0–3 (kaç test geçti)
  */
 function _evaluateSchedule(sch, nurses, year, month) {
-  const days     = daysInMonth(year, month);
+  const days = daysInMonth(year, month);
   const holidays = getHolidayDays(year, month);
-  const TARGET   = 160;
+  const TARGET = 160;
 
-  const hourLoad    = {};
+  const hourLoad = {};
   const weekendLoad = {};
-  const offLoad     = {};
+  const offLoad = {};
 
   nurses.forEach(n => {
     hourLoad[n] = 0; weekendLoad[n] = 0; offLoad[n] = 0;
     for (let d = 1; d <= days; d++) {
-      const s   = sch[n][d] || 'empty';
+      const s = sch[n][d] || 'empty';
       const dow = getDayOfWeek(year, month, d);
-      const isWe  = dow === 0 || dow === 6;
+      const isWe = dow === 0 || dow === 6;
       const isHol = holidays.has(d) && !isWe;
-      hourLoad[n]    += SHIFT_HOURS[s];
+      hourLoad[n] += SHIFT_HOURS[s];
       if ((isWe || isHol) && (s === 'day' || s === 'night' || s === 'daynight')) weekendLoad[n]++;
       if (s === 'empty' || s === 'off') offLoad[n]++;
     }
   });
 
   // Kural 1: Mesai eşitliği
-  const mesaiNurses   = nurses.filter(n => hourLoad[n] > TARGET);
+  const mesaiNurses = nurses.filter(n => hourLoad[n] > TARGET);
   const mesaiFraction = mesaiNurses.length / nurses.length;
-  const mesaiActive   = mesaiFraction >= 0.3;
+  const mesaiActive = mesaiFraction >= 0.3;
   let t1pass = true, t1warn = false;
   let t1spread = 0, t1detail = '';
   if (mesaiActive) {
-    const noMesai  = nurses.filter(n => hourLoad[n] <= TARGET);
-    const mVals    = mesaiNurses.map(n => hourLoad[n]);
-    t1spread       = mVals.length > 1 ? Math.max(...mVals) - Math.min(...mVals) : 0;
-    t1pass         = noMesai.length === 0 && t1spread <= 8;
-    t1warn         = !t1pass && noMesai.length === 0 && t1spread <= 16;
-    t1detail       = mesaiActive
+    const noMesai = nurses.filter(n => hourLoad[n] <= TARGET);
+    const mVals = mesaiNurses.map(n => hourLoad[n]);
+    t1spread = mVals.length > 1 ? Math.max(...mVals) - Math.min(...mVals) : 0;
+    t1pass = noMesai.length === 0 && t1spread <= 8;
+    t1warn = !t1pass && noMesai.length === 0 && t1spread <= 16;
+    t1detail = mesaiActive
       ? `${Math.round(mesaiFraction * 100)}% mesai · fark ${t1spread}s` +
-        (noMesai.length ? ` · mesaisiz: ${noMesai.join(', ')}` : '')
+      (noMesai.length ? ` · mesaisiz: ${noMesai.join(', ')}` : '')
       : `${Math.round(mesaiFraction * 100)}% mesai (kural aktif değil)`;
   } else {
     t1detail = `${Math.round(mesaiFraction * 100)}% mesai (<30%, kural aktif değil)`;
   }
 
   // Kural 2: Haftasonu eşitliği
-  const weVals   = nurses.map(n => weekendLoad[n]);
+  const weVals = nurses.map(n => weekendLoad[n]);
   const weSpread = Math.max(...weVals) - Math.min(...weVals);
-  const t2pass   = weSpread <= 1;
-  const t2warn   = weSpread === 2;
+  const t2pass = weSpread <= 1;
+  const t2warn = weSpread === 2;
   const t2detail = `Min ${Math.min(...weVals)} – Max ${Math.max(...weVals)} · fark ${weSpread}g`;
 
   // Kural 3: Boş gün eşitliği
-  const offVals   = nurses.map(n => offLoad[n]);
+  const offVals = nurses.map(n => offLoad[n]);
   const offSpread = Math.max(...offVals) - Math.min(...offVals);
-  const t3pass    = offSpread <= 1;
-  const t3warn    = offSpread === 2;
-  const t3detail  = `Min ${Math.min(...offVals)} – Max ${Math.max(...offVals)} · fark ${offSpread}g`;
+  const t3pass = offSpread <= 1;
+  const t3warn = offSpread === 2;
+  const t3detail = `Min ${Math.min(...offVals)} – Max ${Math.max(...offVals)} · fark ${offSpread}g`;
 
   const passCount = (t1pass ? 1 : 0) + (t2pass ? 1 : 0) + (t3pass ? 1 : 0);
   const warnCount = (t1warn ? 1 : 0) + (t2warn ? 1 : 0) + (t3warn ? 1 : 0);
@@ -979,15 +1060,22 @@ function _evaluateSchedule(sch, nurses, year, month) {
  *   En az 1 test geçen ilk sonucu uygular.
  *   Başarısız denemeler popup'ta gösterilir.
  */
-const MAX_AUTO_RETRIES = 20;
+const MAX_AUTO_RETRIES = 200;
+const MAX_SCENARIO_DISPLAY = 15; // modalda gösterilecek max senaryo sayısı
+
+// Seçici modal için module-level state
+let _scenarioCandidates = null;
+let _scenarioNurses = null;
+let _scenarioMk = null;
+let _selectedScenarioIndex = null;
 
 function runAutoSchedule() {
-  const minDay    = Math.max(1, parseInt(document.getElementById('autoMinDay').value) || 2);
-  const minNight  = Math.max(1, parseInt(document.getElementById('autoMinNight').value) || 2);
-  const minDayWe  = Math.max(1, parseInt(document.getElementById('autoMinDayWe').value) || 1);
-  const minNightWe = Math.max(1, parseInt(document.getElementById('autoMinNightWe').value) || 1);
+  const { minDay, minNight, minDayWe, minNightWe, maxLeaveDays } = _readAutoInputs();
+  storage.settings = { minDay, minNight, minDayWe, minNightWe, maxLeaveDays };
+  saveStorage();
+  renderRulesBar();
 
-  const nurses    = [...storage.nurses];
+  const nurses = [...storage.nurses];
   const maxPerDay = Math.max(minDay + minNight, minDayWe + minNightWe);
   if (nurses.length < maxPerDay) {
     showToast('❌', 'Yeterli hemşire yok!');
@@ -997,13 +1085,10 @@ function runAutoSchedule() {
   const mk = monthKey(currentYear, currentMonth);
   if (!storage.schedule[mk]) storage.schedule[mk] = {};
 
-  // Mevcut ayın snapshot'ını al — her deneme bu noktadan başlar
   const snapshot = {};
   nurses.forEach(n => { snapshot[n] = { ...(storage.schedule[mk][n] || {}) }; });
 
-  const failedAttempts = [];  // tamamen başarısız denemeler
-  let bestResult = null;      // en yüksek skora sahip deneme
-  let bestScore  = -1;
+  const candidates = [];
 
   for (let attempt = 1; attempt <= MAX_AUTO_RETRIES; attempt++) {
     const { sch, skipped } = _buildScheduleFromSnapshot(
@@ -1011,95 +1096,73 @@ function runAutoSchedule() {
       minDay, minNight, minDayWe, minNightWe
     );
     const evaluation = _evaluateSchedule(sch, nurses, currentYear, currentMonth);
-
-    // En az 1 test geçti mi?
-    if (evaluation.passCount >= 1) {
-      // Bu denemeyi uygula ve döngüyü bitir
-      nurses.forEach(n => { storage.schedule[mk][n] = sch[n]; });
-      saveStorage();
-      closeAutoModal();
-      renderAll();
-
-      const label = `${TR_MONTHS[currentMonth]} ${currentYear}`;
-      const passIcons = [evaluation.t1, evaluation.t2, evaluation.t3].map(t => t.pass ? '✅' : t.warn ? '⚠️' : '❌').join(' ');
-      showToast('🎲', `${label} oluşturuldu (${attempt}. deneme) ${passIcons}`);
-
-      if (failedAttempts.length > 0) {
-        openFailedAttemptsModal(failedAttempts, attempt);
-      }
-      return;
-    }
-
-    // Bu deneme tamamen başarısız — geçmişe ekle
-    const attemptScore = evaluation.score;
-    failedAttempts.push({ attempt, evaluation, skipped });
-
-    if (attemptScore > bestScore) {
-      bestScore  = attemptScore;
-      bestResult = { attempt, sch, evaluation, skipped };
-    }
+    candidates.push({ attempt, sch, evaluation, skipped });
   }
 
-  // MAX_RETRIES sonunda hiç geçemeyen durum — en iyisini uygula
-  if (bestResult) {
-    nurses.forEach(n => { storage.schedule[mk][n] = bestResult.sch[n]; });
-  }
-  saveStorage();
+  // Skora göre sırala: passCount öncelikli, sonra warnCount
+  candidates.sort((a, b) => b.evaluation.score - a.evaluation.score);
+
   closeAutoModal();
-  renderAll();
-
-  showToast('⚠️', `${MAX_AUTO_RETRIES} denemede tüm testler başarısız — en iyi seçildi`);
-  if (failedAttempts.length > 0) {
-    openFailedAttemptsModal(failedAttempts, null);
-  }
+  openScenarioPickerModal(candidates, nurses, mk);
 }
 
-// ─── Başarısız Alternatifler Modal ───────────────────────────────────────────
+// ─── Senaryo Seçici Modal ─────────────────────────────────────────────────────
 
-function openFailedAttemptsModal(attempts, winningAttempt) {
-  const body = document.getElementById('failedAttemptsBody');
-  const note = document.getElementById('failedAttemptsFooterNote');
+function openScenarioPickerModal(candidates, nurses, mk) {
+  _scenarioCandidates = candidates;
+  _scenarioNurses = nurses;
+  _scenarioMk = mk;
+  _selectedScenarioIndex = null;
 
-  if (winningAttempt) {
-    note.textContent = `${attempts.length} başarısız denemenin ardından ${winningAttempt}. denemede en az 1 test geçildi.`;
-  } else {
-    note.textContent = `${attempts.length} denemede hiçbir test geçilemedi. En yüksek skorlu sonuç uygulandı.`;
-  }
+  const display = candidates.slice(0, MAX_SCENARIO_DISPLAY);
+  const totalPass = candidates.filter(c => c.evaluation.passCount === 3).length;
+  const anyPass = candidates.filter(c => c.evaluation.passCount >= 1).length;
+
+  document.getElementById('scenarioPickerSubtitle').textContent =
+    `${candidates.length} denemenin en iyileri gösteriliyor — birini seçip "Uygula" deyin`;
+
+  document.getElementById('scenarioPickerNote').textContent =
+    totalPass > 0
+      ? `${totalPass} tam başarılı, ${anyPass} kısmi başarılı senaryo bulundu.`
+      : anyPass > 0
+        ? `${anyPass} kısmi başarılı senaryo bulundu (3/3 geçen yok).`
+        : `Hiçbir senaryo tüm testleri geçemedi — en iyi olanları listede görebilirsiniz.`;
 
   const testIcon = (t) => t.pass ? '✅' : t.warn ? '⚠️' : '❌';
   const spreadColor = (pass, warn) => pass ? '#4ade80' : warn ? '#fbbf24' : '#f87171';
 
-  body.innerHTML = attempts.map(({ attempt, evaluation: ev, skipped }) => {
-    const { t1, t2, t3 } = ev;
+  document.getElementById('scenarioPickerBody').innerHTML = display.map((c, i) => {
+    const { t1, t2, t3, passCount } = c.evaluation;
+    const rankColor = passCount === 3 ? '#4ade80' : passCount >= 1 ? '#fbbf24' : '#f87171';
+    const passLabel = passCount === 3 ? 'Tam Geçti' : passCount > 0 ? `${passCount}/3 Geçti` : 'Geçemedi';
     return `
-      <div style="
-        margin: 8px 16px;
-        padding: 12px 14px;
-        border-radius: 8px;
-        border: 1px solid var(--modal-divider);
-        background: var(--surface, rgba(0,0,0,0.15));
+      <div class="scenario-card" id="scenario-card-${i}" onclick="selectScenario(${i})" style="
+        margin:8px 16px;padding:12px 14px;border-radius:10px;cursor:pointer;
+        border:2px solid var(--modal-divider);
+        background:var(--surface,rgba(0,0,0,0.15));
+        transition:border-color .15s,background .15s;
       ">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-          <span style="
-            font-size:0.7em;font-weight:700;
-            background:rgba(148,163,184,0.12);
-            color:var(--text-muted);
-            padding:2px 8px;border-radius:99px;
-          ">#${attempt}. DENEME</span>
-          ${skipped > 0 ? `<span style="font-size:0.7em;color:#f87171;">${skipped} gün atlandı</span>` : ''}
+          <span style="font-size:0.7em;font-weight:700;background:rgba(148,163,184,0.12);color:var(--text-muted);padding:2px 8px;border-radius:99px;">
+            #${i + 1} · DENEME ${c.attempt}
+          </span>
+          <span style="font-size:0.7em;font-weight:700;color:${rankColor};padding:2px 8px;border-radius:99px;background:rgba(255,255,255,0.05);">
+            ${passLabel}
+          </span>
+          ${c.skipped > 0 ? `<span style="font-size:0.7em;color:#f87171;">${c.skipped} gün atlandı</span>` : ''}
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
-          <div style="text-align:center;padding:8px;border-radius:6px;background:rgba(${t1.pass?'74,222,128':'248,113,113'},0.07);">
+          <div style="text-align:center;padding:8px;border-radius:6px;background:rgba(${t1.pass ? '74,222,128' : t1.warn ? '251,191,36' : '248,113,113'},0.07);">
             <div style="font-size:1.1em;">${testIcon(t1)}</div>
             <div style="font-size:0.68em;font-weight:700;color:var(--text-muted);margin:2px 0;">Mesai Saati</div>
             <div style="font-size:0.72em;color:${spreadColor(t1.pass, t1.warn)};">${t1.detail}</div>
           </div>
-          <div style="text-align:center;padding:8px;border-radius:6px;background:rgba(${t2.pass?'74,222,128':'248,113,113'},0.07);">
+          <div style="text-align:center;padding:8px;border-radius:6px;background:rgba(${t2.pass ? '74,222,128' : t2.warn ? '251,191,36' : '248,113,113'},0.07);">
             <div style="font-size:1.1em;">${testIcon(t2)}</div>
             <div style="font-size:0.68em;font-weight:700;color:var(--text-muted);margin:2px 0;">Haftasonu</div>
             <div style="font-size:0.72em;color:${spreadColor(t2.pass, t2.warn)};">${t2.detail}</div>
           </div>
-          <div style="text-align:center;padding:8px;border-radius:6px;background:rgba(${t3.pass?'74,222,128':'248,113,113'},0.07);">
+          <div style="text-align:center;padding:8px;border-radius:6px;background:rgba(${t3.pass ? '74,222,128' : t3.warn ? '251,191,36' : '248,113,113'},0.07);">
             <div style="font-size:1.1em;">${testIcon(t3)}</div>
             <div style="font-size:0.68em;font-weight:700;color:var(--text-muted);margin:2px 0;">Boş Gün</div>
             <div style="font-size:0.72em;color:${spreadColor(t3.pass, t3.warn)};">${t3.detail}</div>
@@ -1108,11 +1171,50 @@ function openFailedAttemptsModal(attempts, winningAttempt) {
       </div>`;
   }).join('');
 
-  document.getElementById('failedAttemptsModal').classList.add('open');
+  document.getElementById('scenarioPickerModal').classList.add('open');
 }
 
-function closeFailedAttemptsModal() {
-  document.getElementById('failedAttemptsModal').classList.remove('open');
+function selectScenario(index) {
+  // Önceki seçimi kaldır
+  if (_selectedScenarioIndex !== null) {
+    const prev = document.getElementById(`scenario-card-${_selectedScenarioIndex}`);
+    if (prev) {
+      prev.style.borderColor = 'var(--modal-divider)';
+      prev.style.background = 'var(--surface,rgba(0,0,0,0.15))';
+    }
+  }
+  _selectedScenarioIndex = index;
+  const card = document.getElementById(`scenario-card-${index}`);
+  if (card) {
+    card.style.borderColor = 'var(--brand-cta, #3b82f6)';
+    card.style.background = 'rgba(59,130,246,0.08)';
+  }
+  const btn = document.getElementById('btn-apply-scenario');
+  btn.disabled = false;
+  btn.style.opacity = '';
+}
+
+function applySelectedScenario() {
+  if (_selectedScenarioIndex === null || !_scenarioCandidates) return;
+  const chosen = _scenarioCandidates[_selectedScenarioIndex];
+  _scenarioNurses.forEach(n => { storage.schedule[_scenarioMk][n] = chosen.sch[n]; });
+  saveStorage();
+  closeScenarioPickerModal();
+  renderAll();
+
+  const { t1, t2, t3 } = chosen.evaluation;
+  const passIcons = [t1, t2, t3].map(t => t.pass ? '✅' : t.warn ? '⚠️' : '❌').join(' ');
+  showToast('✅', `Senaryo #${_selectedScenarioIndex + 1} uygulandı ${passIcons}`);
+}
+
+function closeScenarioPickerModal() {
+  document.getElementById('scenarioPickerModal').classList.remove('open');
+  _scenarioCandidates = null;
+  _scenarioNurses = null;
+  _scenarioMk = null;
+  _selectedScenarioIndex = null;
+  const btn = document.getElementById('btn-apply-scenario');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.4'; }
 }
 
 // ─── Month navigation ─────────────────────────────────────────────────────────
@@ -1526,11 +1628,11 @@ function renderNurseList() {
       <span class="nurse-avatar" style="${avatarStyle}">${name.substring(0, 2).toUpperCase()}</span>
       <span class="nurse-item-name">${name}</span>
       <div class="pref-toggle" title="Vardiya Tercihi">
-        <button class="pref-btn${pref === 'day-only'    ? ' pref-active-day-only'    : ''}" onclick="setPreference('${enc}','day-only')"    title="Sadece Gündüz">☀️☀️</button>
-        <button class="pref-btn${pref === 'day-prefer'  ? ' pref-active-day-prefer'  : ''}" onclick="setPreference('${enc}','day-prefer')"  title="Çoğunlukla Gündüz">☀️</button>
-        <button class="pref-btn${pref === 'any'         ? ' pref-active-any'         : ''}" onclick="setPreference('${enc}','any')"         title="Fark Etmez">⚖️</button>
-        <button class="pref-btn${pref === 'night-prefer'? ' pref-active-night-prefer': ''}" onclick="setPreference('${enc}','night-prefer')" title="Çoğunlukla Gece">🌙</button>
-        <button class="pref-btn${pref === 'night-only'  ? ' pref-active-night-only'  : ''}" onclick="setPreference('${enc}','night-only')"  title="Sadece Gece">🌙🌙</button>
+        <button class="pref-btn${pref === 'day-only' ? ' pref-active-day-only' : ''}" onclick="setPreference('${enc}','day-only')"    title="Sadece Gündüz">☀️☀️</button>
+        <button class="pref-btn${pref === 'day-prefer' ? ' pref-active-day-prefer' : ''}" onclick="setPreference('${enc}','day-prefer')"  title="Çoğunlukla Gündüz">☀️</button>
+        <button class="pref-btn${pref === 'any' ? ' pref-active-any' : ''}" onclick="setPreference('${enc}','any')"         title="Fark Etmez">⚖️</button>
+        <button class="pref-btn${pref === 'night-prefer' ? ' pref-active-night-prefer' : ''}" onclick="setPreference('${enc}','night-prefer')" title="Çoğunlukla Gece">🌙</button>
+        <button class="pref-btn${pref === 'night-only' ? ' pref-active-night-only' : ''}" onclick="setPreference('${enc}','night-only')"  title="Sadece Gece">🌙🌙</button>
       </div>
       <div class="nurse-item-actions">
         <button class="icon-btn" onclick="removeNurse(${i})" title="Sil">🗑️</button>
@@ -1690,6 +1792,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('menuModal').addEventListener('click', function (e) {
     if (e.target === this) closeMenuModal();
+  });
+  document.getElementById('scenarioPickerModal').addEventListener('click', function (e) {
+    if (e.target === this) closeScenarioPickerModal();
   });
 
 
